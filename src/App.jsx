@@ -266,7 +266,17 @@ function CalendarApp({ owner }) {
     await insertEvent(ev);
   }, [inputText, showToast, speech, owner]);
 
-  const openInput = useCallback(() => { setInputText(""); setShowInput(true); setTimeout(() => inputRef.current?.focus(), 150); }, []);
+  const openInput = useCallback(() => {
+    // if a day is selected, pre-fill the date
+    if (selDay) {
+      const d = pKey(selDay);
+      setInputText(`${d.getMonth()+1}月${d.getDate()}日 `);
+    } else {
+      setInputText("");
+    }
+    setShowInput(true);
+    setTimeout(() => inputRef.current?.focus(), 150);
+  }, [selDay]);
   const closeInput = useCallback(() => { setShowInput(false); setInputText(""); speech.stop(); }, [speech]);
   const toggleMic = useCallback(() => { if (speech.listening) speech.stop(); else speech.start(); }, [speech]);
 
@@ -276,9 +286,9 @@ function CalendarApp({ owner }) {
     dispatch({ type: "UPDATE", event: clean }); setEditing(null); showToast("已更新"); await updateEvent(clean);
   }, [showToast]);
 
-  const prev = () => { if (cM === 0) { setCY(y => y - 1); setCM(11); } else setCM(m => m - 1); };
-  const next = () => { if (cM === 11) { setCY(y => y + 1); setCM(0); } else setCM(m => m + 1); };
-  const goToday = () => { setCY(new Date().getFullYear()); setCM(new Date().getMonth()); };
+  const prev = () => { setSelDay(null); if (cM === 0) { setCY(y => y - 1); setCM(11); } else setCM(m => m - 1); };
+  const next = () => { setSelDay(null); if (cM === 11) { setCY(y => y + 1); setCM(0); } else setCM(m => m + 1); };
+  const goToday = () => { setSelDay(null); setCY(new Date().getFullYear()); setCM(new Date().getMonth()); };
 
   const eMap = useMemo(() => {
     const m = {}; events.forEach(e => { (m[e.date] = m[e.date] || []).push(e); });
