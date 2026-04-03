@@ -126,8 +126,97 @@ function reducer(s, a) {
   }
 }
 
-const WDAYS = ["日", "一", "二", "三", "四", "五", "六"];
-const MZH = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"];
+/* ───── i18n ───── */
+const i18n = {
+  zh: {
+    wdays: ["日", "一", "二", "三", "四", "五", "六"],
+    months: ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"],
+    monthSuffix: "月",
+    today: "今天",
+    thisMonth: "本月安排",
+    noEvents: "暂无日程，点击 + 添加",
+    noEventsDay: "当天暂无安排",
+    viewAll: "查看全月",
+    addEvent: "添加日程",
+    save: "保存",
+    edit: "编辑事项",
+    editHint: "直接修改这句话，系统会自动识别日期和时间",
+    dateLabel: "日期",
+    timeLabel: "时间",
+    contentLabel: "内容",
+    timeUndecided: "时间未定",
+    inputHint: "说一句话或打字输入",
+    listening: "正在聆听...",
+    placeholder: "明天下午3点开会\n周五提交资料\n下周二和朋友吃饭",
+    noDate: "未能识别日期，请再试试",
+    noContent: "未能识别事项内容",
+    added: "已添加：",
+    deleted: "已删除",
+    updated: "已更新",
+    logout: "退出登录",
+    loginTitle: "我的日历",
+    loginSub: "我们的征途是星辰大海",
+    loginPlaceholder: "输入你的专属口令",
+    loginBtn: "进入日历",
+    loginLoading: "进入中...",
+    loading: "加载中...",
+    weekPrefix: "周",
+    dayGroup: (day, wd) => `${day}日 · 周${wd}`,
+    dateDisplay: (m, d) => `${m}月${d}日`,
+    fullDate: (y, m, d) => `${y}年${m}月${d}日`,
+    listDate: (m, d, wd) => `${m}月${d}日 · 周${wd}`,
+    schedDay: (m, d) => `${m}月${d}日`,
+    schedWk: (wd) => ` 周${wd}`,
+  },
+  ja: {
+    wdays: ["日", "月", "火", "水", "木", "金", "土"],
+    months: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
+    monthSuffix: "月",
+    today: "今日",
+    thisMonth: "今月の予定",
+    noEvents: "予定なし、+ で追加",
+    noEventsDay: "この日の予定はありません",
+    viewAll: "月全体を見る",
+    addEvent: "予定を追加",
+    save: "保存",
+    edit: "予定を編集",
+    editHint: "この文を直接修正してください。日付と時間は自動認識されます",
+    dateLabel: "日付",
+    timeLabel: "時間",
+    contentLabel: "内容",
+    timeUndecided: "時間未定",
+    inputHint: "一言で入力、または音声入力",
+    listening: "聞いています...",
+    placeholder: "明日午後3時に会議\n金曜日に資料提出\n来週火曜日に友達とご飯",
+    noDate: "日付を認識できませんでした",
+    noContent: "内容を認識できませんでした",
+    added: "追加しました：",
+    deleted: "削除しました",
+    updated: "更新しました",
+    logout: "ログアウト",
+    loginTitle: "マイカレンダー",
+    loginSub: "我らが征くは星の大海",
+    loginPlaceholder: "パスワードを入力",
+    loginBtn: "カレンダーに入る",
+    loginLoading: "読み込み中...",
+    loading: "読み込み中...",
+    weekPrefix: "",
+    dayGroup: (day, wd) => `${day}日（${wd}）`,
+    dateDisplay: (m, d) => `${m}月${d}日`,
+    fullDate: (y, m, d) => `${y}年${m}月${d}日`,
+    listDate: (m, d, wd) => `${m}月${d}日（${wd}）`,
+    schedDay: (m, d) => `${m}月${d}日`,
+    schedWk: (wd) => `（${wd}）`,
+  },
+};
+
+function useLang() {
+  const [lang, setLang] = useState(() => localStorage.getItem("cal-lang") || "zh");
+  const toggle = useCallback(() => {
+    setLang(prev => { const next = prev === "zh" ? "ja" : "zh"; localStorage.setItem("cal-lang", next); return next; });
+  }, []);
+  return { lang, t: i18n[lang], toggle };
+}
 
 /* ───── speech hook ───── */
 function useSpeech() {
@@ -151,11 +240,10 @@ function useSpeech() {
 const GRAD = "linear-gradient(135deg, #E879A8, #C084FC, #A78BFA)";
 
 /* ═══════ LOGIN SCREEN ═══════ */
-function LoginScreen({ onLogin }) {
+function LoginScreen({ onLogin, lang, t, toggleLang }) {
   const [phrase, setPhrase] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // check saved session
   useEffect(() => {
     const saved = localStorage.getItem("cal-owner");
     if (saved) onLogin(saved);
@@ -171,7 +259,6 @@ function LoginScreen({ onLogin }) {
 
   return (
     <div style={LS.wrap}>
-      {/* banner illustration */}
       <div style={LS.bannerWrap}>
         <svg viewBox="0 0 400 200" style={{ width: "100%", height: "100%", display: "block" }} preserveAspectRatio="xMidYMid slice">
           <defs>
@@ -201,21 +288,27 @@ function LoginScreen({ onLogin }) {
       </div>
 
       <div style={LS.content}>
-        <div style={LS.title}>我的日历</div>
-        <div style={LS.sub}>我们的征途是星辰大海</div>
-        <div style={LS.desc}>输入你的专属口令，数据会安全保存在云端</div>
+        {/* Language slider toggle */}
+        <div style={LS.sliderWrap} onClick={toggleLang}>
+          <div style={LS.sliderTrack}>
+            <div style={{ ...LS.sliderThumb, transform: lang === "ja" ? "translateX(100%)" : "translateX(0)" }} />
+            <span style={{ ...LS.sliderLabel, left: 0, color: lang === "zh" ? "#fff" : "#C084FC" }}>中文</span>
+            <span style={{ ...LS.sliderLabel, right: 0, color: lang === "ja" ? "#fff" : "#C084FC" }}>日本語</span>
+          </div>
+        </div>
+        <div style={LS.title}>{t.loginTitle}</div>
+        <div style={LS.sub}>{t.loginSub}</div>
         <input
           style={LS.input}
           type="password"
           value={phrase}
           onChange={e => setPhrase(e.target.value)}
           onKeyDown={e => { if (e.key === "Enter") handleLogin(); }}
-          placeholder="输入你的专属口令"
+          placeholder={t.loginPlaceholder}
         />
         <button style={{ ...LS.btn, opacity: phrase.trim() ? 1 : 0.45 }} onClick={handleLogin} disabled={!phrase.trim() || loading}>
-          {loading ? "进入中..." : "进入日历"}
+          {loading ? t.loginLoading : t.loginBtn}
         </button>
-        <div style={LS.tip}>口令就是你的钥匙，请记住它</div>
       </div>
     </div>
   );
@@ -227,14 +320,16 @@ const LS = {
   content: { padding: "24px 28px", textAlign: "center" },
   title: { fontSize: 28, fontWeight: 800, background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 4 },
   sub: { fontSize: 14, color: "#A78BFA", fontWeight: 500, marginBottom: 24 },
-  desc: { fontSize: 13, color: "#999", marginBottom: 20, lineHeight: 1.5 },
+  sliderWrap: { display: "flex", justifyContent: "center", marginBottom: 16, cursor: "pointer" },
+  sliderTrack: { position: "relative", width: 140, height: 36, borderRadius: 18, display: "flex", alignItems: "center", overflow: "hidden" },
+  sliderThumb: { position: "absolute", width: "50%", height: "100%", borderRadius: 18, background: GRAD, transition: "transform 0.3s ease", zIndex: 1 },
+  sliderLabel: { position: "absolute", width: "50%", textAlign: "center", fontSize: 13, fontWeight: 700, zIndex: 2, transition: "color 0.3s ease" },
   input: { width: "100%", padding: "14px 18px", border: "1.5px solid #E5E5E5", borderRadius: 14, fontSize: 16, outline: "none", background: "#fff", color: "#1A1A1A", textAlign: "center", boxSizing: "border-box", marginBottom: 14 },
   btn: { width: "100%", height: 50, borderRadius: 14, border: "none", background: GRAD, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer", transition: "opacity .2s" },
-  tip: { fontSize: 12, color: "#C0C0C0", marginTop: 16 },
 };
 
 /* ═══════ MAIN APP ═══════ */
-function CalendarApp({ owner }) {
+function CalendarApp({ owner, lang, t, toggleLang }) {
   const [events, dispatch] = useReducer(reducer, []);
   const [view, setView] = useState("calendar");
   const [cY, setCY] = useState(new Date().getFullYear());
@@ -256,18 +351,17 @@ function CalendarApp({ owner }) {
   const handleAdd = useCallback(async () => {
     const txt = inputText.trim(); if (!txt) return;
     const p = parseNL(txt, new Date());
-    if (!p.date) { showToast("未能识别日期，请再试试", "error"); return; }
-    if (!p.content) { showToast("未能识别事项内容", "error"); return; }
+    if (!p.date) { showToast(t.noDate, "error"); return; }
+    if (!p.content) { showToast(t.noContent, "error"); return; }
     const ev = { id: uid(), owner, date: dKey(p.date), time: p.time ? ft(p.time) : null, content: p.content };
     dispatch({ type: "ADD", event: ev });
     setInputText(""); setShowInput(false); speech.stop();
-    showToast(`已添加：${p.content}`);
+    showToast(`${t.added}${p.content}`);
     setCY(p.date.getFullYear()); setCM(p.date.getMonth());
     await insertEvent(ev);
-  }, [inputText, showToast, speech, owner]);
+  }, [inputText, showToast, speech, owner, t]);
 
   const openInput = useCallback(() => {
-    // if a day is selected, pre-fill the date
     if (selDay) {
       const d = pKey(selDay);
       setInputText(`${d.getMonth()+1}月${d.getDate()}日 `);
@@ -280,11 +374,11 @@ function CalendarApp({ owner }) {
   const closeInput = useCallback(() => { setShowInput(false); setInputText(""); speech.stop(); }, [speech]);
   const toggleMic = useCallback(() => { if (speech.listening) speech.stop(); else speech.start(); }, [speech]);
 
-  const handleDel = useCallback(async (id) => { dispatch({ type: "DELETE", id }); showToast("已删除"); await deleteEvent(id); }, [showToast]);
+  const handleDel = useCallback(async (id) => { dispatch({ type: "DELETE", id }); showToast(t.deleted); await deleteEvent(id); }, [showToast, t]);
   const handleUpd = useCallback(async (ev) => {
     const { _raw, ...clean } = ev;
-    dispatch({ type: "UPDATE", event: clean }); setEditing(null); showToast("已更新"); await updateEvent(clean);
-  }, [showToast]);
+    dispatch({ type: "UPDATE", event: clean }); setEditing(null); showToast(t.updated); await updateEvent(clean);
+  }, [showToast, t]);
 
   const prev = () => { setSelDay(null); if (cM === 0) { setCY(y => y - 1); setCM(11); } else setCM(m => m - 1); };
   const next = () => { setSelDay(null); if (cM === 11) { setCY(y => y + 1); setCM(0); } else setCM(m => m + 1); };
@@ -321,15 +415,24 @@ function CalendarApp({ owner }) {
 
   const logout = () => { localStorage.removeItem("cal-owner"); window.location.reload(); };
 
-  if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", color: "#C084FC", fontFamily: "sans-serif" }}>加载中...</div>;
+  if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", color: "#C084FC", fontFamily: "sans-serif" }}>{t.loading}</div>;
 
   return (
     <div style={S.app}>
       {/* HEADER */}
       <div style={S.header}>
-        <div style={S.monthLabel}>{MZH[cM]}月</div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={S.monthLabel}>{t.months[cM]}{t.monthSuffix}</div>
+          <div style={S.headerSliderWrap} onClick={toggleLang}>
+            <div style={S.headerSliderTrack}>
+              <div style={{ ...S.headerSliderThumb, transform: lang === "ja" ? "translateX(100%)" : "translateX(0)" }} />
+              <span style={{ ...S.headerSliderLabel, left: 0, color: lang === "zh" ? "#fff" : "#C084FC" }}>中</span>
+              <span style={{ ...S.headerSliderLabel, right: 0, color: lang === "ja" ? "#fff" : "#C084FC" }}>日</span>
+            </div>
+          </div>
+        </div>
         <div style={S.headerR}>
-          <button style={S.todayBtn} onClick={goToday}>今天</button>
+          <button style={S.todayBtn} onClick={goToday}>{t.today}</button>
           <button style={S.arrBtn} onClick={prev}><IcoL /></button>
           <button style={S.arrBtn} onClick={next}><IcoR /></button>
           <div style={S.viewToggle}>
@@ -361,7 +464,7 @@ function CalendarApp({ owner }) {
             <line x1="30" y1="122" x2="70" y2="122" stroke="white" strokeWidth="0.8" opacity="0.3" /><line x1="200" y1="120" x2="250" y2="120" stroke="white" strokeWidth="0.7" opacity="0.3" /><line x1="350" y1="125" x2="390" y2="125" stroke="white" strokeWidth="0.6" opacity="0.25" />
           </svg>
           <div style={S.bannerText}>
-            <div style={S.bannerQuote}>我们的征途是星辰大海</div>
+            <div style={S.bannerQuote}>{t.loginSub}</div>
           </div>
         </div>
       </div>
@@ -370,7 +473,7 @@ function CalendarApp({ owner }) {
       {view === "calendar" && <>
         <div style={S.calCard}>
           <div style={S.calGrid}>
-            {WDAYS.map(d => <div key={d} style={S.dow}>{d}</div>)}
+            {t.wdays.map(d => <div key={d} style={S.dow}>{d}</div>)}
             {grid.map((day, i) => {
               if (day === null) return <div key={"e" + i} style={S.cell} />;
               const key = `${cY}-${String(cM + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -388,15 +491,15 @@ function CalendarApp({ owner }) {
 
         <div style={S.schedArea}>
           <div style={S.schedHeader}>
-            {selDay ? (() => { const d = pKey(selDay); return <><span style={S.schedDate}>{d.getMonth() + 1}月{d.getDate()}日</span><span style={S.schedWk}> 周{WDAYS[d.getDay()]}</span></>; })()
-              : <span style={S.schedDate}>本月安排</span>}
+            {selDay ? (() => { const d = pKey(selDay); return <><span style={S.schedDate}>{t.schedDay(d.getMonth() + 1, d.getDate())}</span><span style={S.schedWk}>{t.schedWk(t.wdays[d.getDay()])}</span></>; })()
+              : <span style={S.schedDate}>{t.thisMonth}</span>}
           </div>
           {selDay ? (<>
-            {(eMap[selDay] || []).length === 0 && <div style={S.empty}>当天暂无安排</div>}
+            {(eMap[selDay] || []).length === 0 && <div style={S.empty}>{t.noEventsDay}</div>}
             {(eMap[selDay] || []).map((ev, j) => (
               <div key={ev.id} style={S.evCard}>
                 <div style={{ ...S.evDot, background: getDot(j) }} />
-                <div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || "时间未定"}</div></div>
+                <div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div>
                 <div style={S.evActs}>
                   <button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button>
                   <button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button>
@@ -404,8 +507,8 @@ function CalendarApp({ owner }) {
               </div>
             ))}
           </>) : (<>
-            {grouped.length === 0 && <div style={S.empty}>暂无日程，点击 + 添加</div>}
-            {grouped.map(g => { const d = pKey(g.date); return (<div key={g.date}><div style={S.groupLabel}>{d.getDate()}日 · 周{WDAYS[d.getDay()]}</div>{g.items.map((ev, j) => (<div key={ev.id} style={S.evCard} onClick={() => setSelDay(g.date)}><div style={{ ...S.evDot, background: getDot(j) }} /><div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || "时间未定"}</div></div></div>))}</div>); })}
+            {grouped.length === 0 && <div style={S.empty}>{t.noEvents}</div>}
+            {grouped.map(g => { const d = pKey(g.date); return (<div key={g.date}><div style={S.groupLabel}>{t.dayGroup(d.getDate(), t.wdays[d.getDay()])}</div>{g.items.map((ev, j) => (<div key={ev.id} style={S.evCard} onClick={() => setSelDay(g.date)}><div style={{ ...S.evDot, background: getDot(j) }} /><div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div></div>))}</div>); })}
           </>)}
         </div>
       </>}
@@ -413,8 +516,8 @@ function CalendarApp({ owner }) {
       {/* LIST VIEW */}
       {view === "list" && (
         <div style={S.listArea}>
-          {allSorted.length === 0 && <div style={S.empty}>暂无日程</div>}
-          {allSorted.map((ev, j) => { const d = pKey(ev.date); return (<div key={ev.id} style={{ marginBottom: 8 }}><div style={S.listDateLabel}>{d.getMonth() + 1}月{d.getDate()}日 · 周{WDAYS[d.getDay()]}</div><div style={S.evCard}><div style={{ ...S.evDot, background: getDot(j) }} /><div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || "时间未定"}</div></div><div style={S.evActs}><button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button><button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button></div></div></div>); })}
+          {allSorted.length === 0 && <div style={S.empty}>{t.noEvents}</div>}
+          {allSorted.map((ev, j) => { const d = pKey(ev.date); return (<div key={ev.id} style={{ marginBottom: 8 }}><div style={S.listDateLabel}>{t.listDate(d.getMonth()+1, d.getDate(), t.wdays[d.getDay()])}</div><div style={S.evCard}><div style={{ ...S.evDot, background: getDot(j) }} /><div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div><div style={S.evActs}><button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button><button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button></div></div></div>); })}
         </div>
       )}
 
@@ -426,10 +529,10 @@ function CalendarApp({ owner }) {
         <div style={S.overlay} onClick={closeInput}>
           <div style={S.sheet} onClick={e => e.stopPropagation()}>
             <div style={S.sheetHandle} />
-            <div style={S.sheetHint}>{speech.listening ? "正在聆听..." : "说一句话或打字输入"}</div>
-            <textarea ref={inputRef} style={S.sheetTA} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAdd(); } }} placeholder={"明天下午3点开会\n周五提交资料\n下周二和朋友吃饭"} rows={3} />
+            <div style={S.sheetHint}>{speech.listening ? t.listening : t.inputHint}</div>
+            <textarea ref={inputRef} style={S.sheetTA} value={inputText} onChange={e => setInputText(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleAdd(); } }} placeholder={t.placeholder} rows={3} />
             <div style={S.sheetBtnRow}>
-              <button style={{ ...S.mainBtn, opacity: inputText.trim() ? 1 : 0.45 }} onClick={handleAdd} disabled={!inputText.trim()}>添加日程</button>
+              <button style={{ ...S.mainBtn, opacity: inputText.trim() ? 1 : 0.45 }} onClick={handleAdd} disabled={!inputText.trim()}>{t.addEvent}</button>
               {speech.supported && <button style={{ ...S.micBtn, ...(speech.listening ? S.micLive : {}) }} onClick={toggleMic}><IcoMic /></button>}
             </div>
           </div>
@@ -444,16 +547,16 @@ function CalendarApp({ owner }) {
         <div style={S.overlay} onClick={() => setEditing(null)}>
           <div style={S.sheet} onClick={e => e.stopPropagation()}>
             <div style={S.sheetHandle} />
-            <div style={S.editHeader}><span style={S.editTitle}>编辑事项</span><button style={S.iBtn} onClick={() => setEditing(null)}><IcoX /></button></div>
+            <div style={S.editHeader}><span style={S.editTitle}>{t.edit}</span><button style={S.iBtn} onClick={() => setEditing(null)}><IcoX /></button></div>
             <div style={{ marginTop: 8 }}>
-              <div style={S.editHint}>直接修改这句话，系统会自动识别日期和时间</div>
+              <div style={S.editHint}>{t.editHint}</div>
               <textarea style={S.sheetTA} value={editing._raw || (() => { const d = pKey(editing.date); return `${d.getMonth() + 1}月${d.getDate()}日${editing.time ? " " + editing.time.replace(":", "点") : ""} ${editing.content}`; })()} onChange={e => { const raw = e.target.value; const p = parseNL(raw, new Date()); setEditing({ ...editing, _raw: raw, date: p.date ? dKey(p.date) : editing.date, time: p.time ? ft(p.time) : null, content: p.content || editing.content }); }} rows={2} />
               <div style={S.editPreview}>
-                <div style={S.previewRow}><span style={S.previewLabel}>日期</span><span style={S.previewVal}>{(() => { const d = pKey(editing.date); return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日`; })()}</span></div>
-                <div style={S.previewRow}><span style={S.previewLabel}>时间</span><span style={S.previewVal}>{editing.time || "未定"}</span></div>
-                <div style={S.previewRow}><span style={S.previewLabel}>内容</span><span style={S.previewVal}>{editing.content}</span></div>
+                <div style={S.previewRow}><span style={S.previewLabel}>{t.dateLabel}</span><span style={S.previewVal}>{(() => { const d = pKey(editing.date); return t.fullDate(d.getFullYear(), d.getMonth() + 1, d.getDate()); })()}</span></div>
+                <div style={S.previewRow}><span style={S.previewLabel}>{t.timeLabel}</span><span style={S.previewVal}>{editing.time || t.timeUndecided}</span></div>
+                <div style={S.previewRow}><span style={S.previewLabel}>{t.contentLabel}</span><span style={S.previewVal}>{editing.content}</span></div>
               </div>
-              <button style={S.saveBtn} onClick={() => handleUpd(editing)}><IcoCheck /><span style={{ marginLeft: 6 }}>保存</span></button>
+              <button style={S.saveBtn} onClick={() => handleUpd(editing)}><IcoCheck /><span style={{ marginLeft: 6 }}>{t.save}</span></button>
             </div>
           </div>
         </div>
@@ -461,7 +564,7 @@ function CalendarApp({ owner }) {
 
       {/* LOGOUT */}
       <div style={S.logoutWrap}>
-        <button style={S.logoutBtn} onClick={logout}>退出登录</button>
+        <button style={S.logoutBtn} onClick={logout}>{t.logout}</button>
       </div>
     </div>
   );
@@ -472,6 +575,10 @@ const S = {
   app: { fontFamily: "-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB',sans-serif", maxWidth: 430, margin: "0 auto", background: "#F5F5F5", minHeight: "100vh", color: "#1A1A1A", fontSize: 14, paddingBottom: 100, position: "relative" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 20px 6px" },
   monthLabel: { fontSize: 28, fontWeight: 800, letterSpacing: -0.5, background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" },
+  headerSliderWrap: { cursor: "pointer" },
+  headerSliderTrack: { position: "relative", width: 64, height: 28, borderRadius: 14, background: "#F3E8FF", display: "flex", alignItems: "center", overflow: "hidden" },
+  headerSliderThumb: { position: "absolute", width: "50%", height: "100%", borderRadius: 14, background: GRAD, transition: "transform 0.3s ease", zIndex: 1 },
+  headerSliderLabel: { position: "absolute", width: "50%", textAlign: "center", fontSize: 12, fontWeight: 700, zIndex: 2, transition: "color 0.3s ease" },
   headerR: { display: "flex", gap: 6, alignItems: "center" },
   todayBtn: { background: "#fff", border: "1px solid #E5E5E5", borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "#C084FC", cursor: "pointer" },
   arrBtn: { background: "none", border: "none", color: "#C084FC", cursor: "pointer", padding: 2 },
@@ -531,7 +638,8 @@ const S = {
 /* ═══════ ROOT EXPORT ═══════ */
 export default function App() {
   const [owner, setOwner] = useState(null);
+  const { lang, t, toggle } = useLang();
   const handleLogin = useCallback((o) => setOwner(o), []);
-  if (!owner) return <LoginScreen onLogin={handleLogin} />;
-  return <CalendarApp owner={owner} />;
+  if (!owner) return <LoginScreen onLogin={handleLogin} lang={lang} t={t} toggleLang={toggle} />;
+  return <CalendarApp owner={owner} lang={lang} t={t} toggleLang={toggle} />;
 }
