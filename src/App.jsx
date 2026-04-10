@@ -488,7 +488,7 @@ const S = {
   viewToggle: { display: "flex", background: "#F3E8FF", borderRadius: 8, padding: 2 },
   togBtn: { background: "none", border: "none", padding: "5px 8px", borderRadius: 6, color: "#C0C0C0", cursor: "pointer", display: "flex", alignItems: "center" },
   togActive: { background: "#fff", color: "#C084FC", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" },
-  calCard: { margin: "8px 16px 0", background: "#fff", borderRadius: 16, padding: "12px 8px 8px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)", overflow: "hidden" },
+  calCard: { margin: "8px 16px 0", background: "#fff", borderRadius: 16, padding: "12px 8px 8px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)", overflow: "hidden", touchAction: "pan-y" },
   calGrid: { display: "grid", gridTemplateColumns: "repeat(7,1fr)" },
   dow: { textAlign: "center", fontSize: 12, fontWeight: 500, color: "#C0C0C0", padding: "4px 0 8px" },
   cell: { display: "flex", flexDirection: "column", alignItems: "center", padding: "6px 0 4px", cursor: "pointer", borderRadius: 10, minHeight: 44 },
