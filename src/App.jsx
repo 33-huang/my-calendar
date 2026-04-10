@@ -115,6 +115,8 @@ const IcoCheck = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="non
 const IcoMic = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="1" width="6" height="12" rx="3" /><path d="M19 10v2a7 7 0 01-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>;
 const IcoPlus = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
 
+const IcoCheckCircle = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11.5 14.5 16 9.5"/></svg>;
+
 /* ───── reducer ───── */
 function reducer(s, a) {
   switch (a.type) {
@@ -122,6 +124,7 @@ function reducer(s, a) {
     case "ADD": return [...s, a.event];
     case "UPDATE": return s.map(e => e.id === a.event.id ? a.event : e);
     case "DELETE": return s.filter(e => e.id !== a.id);
+    case "TOGGLE_DONE": return s.map(e => e.id === a.id ? { ...e, done: !e.done } : e);
     default: return s;
   }
 }
@@ -391,6 +394,11 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
   const toggleMic = useCallback(() => { if (speech.listening) speech.stop(); else speech.start(); }, [speech]);
 
   const handleDel = useCallback(async (id) => { dispatch({ type: "DELETE", id }); showToast(t.deleted); await deleteEvent(id); }, [showToast, t]);
+  const handleToggle = useCallback(async (id) => {
+    dispatch({ type: "TOGGLE_DONE", id });
+    const ev = events.find(e => e.id === id);
+    if (ev) await updateEvent({ ...ev, done: !ev.done });
+  }, [events]);
   const handleUpd = useCallback(async (ev) => {
     const { _raw, ...clean } = ev;
     dispatch({ type: "UPDATE", event: clean }); setEditing(null); showToast(t.updated); await updateEvent(clean);
@@ -491,10 +499,12 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
               const key = `${cY}-${String(cM + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
               const isToday = key === todayKey;
               const hasEv = !!eMap[key]?.length;
+              const allDone = hasEv && eMap[key].every(e => e.done);
+              const hasUndone = hasEv && eMap[key].some(e => !e.done);
               const isSel = selDay === key && !isToday;
               return (
                 <div key={key} style={{ ...S.cell, ...(isSel ? S.cellSel : {}) }} onClick={() => setSelDay(selDay === key ? null : key)}>
-                  <div style={{ ...S.dayNum, ...(isToday ? S.dayToday : {}), ...(hasEv && !isToday ? S.dayHasEv : {}), fontWeight: hasEv || isToday ? 700 : 400 }}>{day}</div>
+                  <div style={{ ...S.dayNum, ...(isToday ? S.dayToday : {}), ...(hasUndone && !isToday ? S.dayHasEv : {}), ...(allDone && !isToday ? S.dayAllDone : {}), fontWeight: hasEv || isToday ? 700 : 400 }}>{day}</div>
                 </div>
               );
             })}
@@ -529,7 +539,14 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
       {view === "list" && (
         <div style={S.listArea}>
           {allSorted.length === 0 && <div style={S.empty}>{t.noEvents}</div>}
-          {allSorted.map((ev, j) => { const d = pKey(ev.date); return (<div key={ev.id} style={{ marginBottom: 8 }}><div style={S.listDateLabel}>{t.listDate(d.getMonth()+1, d.getDate(), t.wdays[d.getDay()])}</div><div style={S.evCard}><div style={{ ...S.evDot, background: getDot(j) }} /><div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div><div style={S.evActs}><button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button><button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button></div></div></div>); })}
+          {allSorted.some(e=>!e.done) && <>
+            <div style={S.listSectionTitle}>{lang==="zh"?"待发生":"予定"}</div>
+            {allSorted.filter(e=>!e.done).map((ev, j) => { const d = pKey(ev.date); return (<div key={ev.id} style={{ marginBottom: 8 }}><div style={S.listDateLabel}>{t.listDate(d.getMonth()+1, d.getDate(), t.wdays[d.getDay()])}</div><div style={S.evCard}><button style={S.checkBtn} onClick={()=>handleToggle(ev.id)}><IcoCheckCircle/></button><div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div><div style={S.evActs}><button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button><button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button></div></div></div>); })}
+          </>}
+          {allSorted.some(e=>e.done) && <>
+            <div style={{...S.listSectionTitle, color:"#999"}}>{lang==="zh"?"已完成":"完了"}</div>
+            {allSorted.filter(e=>e.done).map((ev, j) => { const d = pKey(ev.date); return (<div key={ev.id} style={{ marginBottom: 8 }}><div style={{...S.listDateLabel, color:"#C0C0C0"}}>{t.listDate(d.getMonth()+1, d.getDate(), t.wdays[d.getDay()])}</div><div style={{...S.evCard, opacity:0.5}}><button style={{...S.checkBtn,color:"#C084FC"}} onClick={()=>handleToggle(ev.id)}><IcoCheckCircle/></button><div style={S.evBody}><div style={{...S.evContent,textDecoration:"line-through",color:"#999"}}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div><div style={S.evActs}><button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button><button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button></div></div></div>); })}
+          </>}
         </div>
       )}
 
@@ -605,6 +622,7 @@ const S = {
   dayNum: { width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, borderRadius: "50%", color: "#333", transition: "all .15s" },
   dayToday: { background: GRAD, color: "#fff", fontWeight: 700 },
   dayHasEv: { border: "2px solid #D8B4FE", color: "#9333EA" },
+  dayAllDone: { border: "2px solid #D4D4D4", color: "#999" },
   schedArea: { padding: "16px 20px 0" },
   schedHeader: { marginBottom: 12 },
   schedDate: { fontSize: 16, fontWeight: 700, background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" },
@@ -617,6 +635,9 @@ const S = {
   evTime: { fontSize: 12, color: "#999", marginTop: 2 },
   evActs: { display: "flex", gap: 4, marginLeft: 8, flexShrink: 0 },
   iBtn: { background: "none", border: "none", color: "#999", cursor: "pointer", padding: 6, borderRadius: 8 },
+  checkBtn: { background: "none", border: "none", color: "#D4D4D4", cursor: "pointer", padding: 4, marginRight: 8, flexShrink: 0, borderRadius: 8 },
+  doneLabel: { fontSize: 12, fontWeight: 600, color: "#C0C0C0", margin: "16px 0 6px" },
+  listSectionTitle: { fontSize: 15, fontWeight: 700, color: "#C084FC", margin: "12px 0 8px" },
   empty: { textAlign: "center", color: "#C0C0C0", padding: "40px 0", fontSize: 14 },
   listArea: { padding: "8px 16px" },
   listDateLabel: { fontSize: 12, fontWeight: 600, color: "#C084FC", marginBottom: 4, paddingLeft: 2 },
