@@ -1,13 +1,12 @@
 import { useState, useReducer, useCallback, useMemo, useEffect, useRef } from "react";
 
 /* ═══════════════════════════════════════
-   ⚠️ 部署前必须修改这两行：
-   去 Supabase 项目 Settings → API 复制
+   Supabase 配置
    ═══════════════════════════════════════ */
 const SUPABASE_URL = "https://hveabhjlelojuvxagzyl.supabase.co";
 const SUPABASE_KEY = "sb_publishable_FRn1_CAe0CkOzgSPkE2Ukg_4kwULNMs";
 
-/* ───── Supabase 轻量客户端（不需要安装 SDK）───── */
+/* ───── Supabase 轻量客户端 ───── */
 async function supaFetch(path, options = {}) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
@@ -24,37 +23,21 @@ async function supaFetch(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-/* ───── data layer ───── */
 async function loadEvents(owner) {
-  try {
-    return await supaFetch(`events?owner=eq.${encodeURIComponent(owner)}&order=date.asc`);
-  } catch (e) { console.error("Load failed:", e); return []; }
+  try { return await supaFetch(`events?owner=eq.${encodeURIComponent(owner)}&order=date.asc`); }
+  catch (e) { console.error("Load failed:", e); return []; }
 }
-
 async function insertEvent(event) {
-  try {
-    await supaFetch("events", {
-      method: "POST",
-      prefer: "return=minimal",
-      body: JSON.stringify(event),
-    });
-  } catch (e) { console.error("Insert failed:", e); }
+  try { await supaFetch("events", { method: "POST", prefer: "return=minimal", body: JSON.stringify(event) }); }
+  catch (e) { console.error("Insert failed:", e); }
 }
-
 async function updateEvent(event) {
-  try {
-    await supaFetch(`events?id=eq.${encodeURIComponent(event.id)}`, {
-      method: "PATCH",
-      prefer: "return=minimal",
-      body: JSON.stringify({ date: event.date, time: event.time, content: event.content }),
-    });
-  } catch (e) { console.error("Update failed:", e); }
+  try { await supaFetch(`events?id=eq.${encodeURIComponent(event.id)}`, { method: "PATCH", prefer: "return=minimal", body: JSON.stringify({ date: event.date, time: event.time, content: event.content, done: event.done }) }); }
+  catch (e) { console.error("Update failed:", e); }
 }
-
 async function deleteEvent(id) {
-  try {
-    await supaFetch(`events?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" });
-  } catch (e) { console.error("Delete failed:", e); }
+  try { await supaFetch(`events?id=eq.${encodeURIComponent(id)}`, { method: "DELETE" }); }
+  catch (e) { console.error("Delete failed:", e); }
 }
 
 /* ───── uid ───── */
@@ -70,26 +53,31 @@ function parseNL(text, today) {
     { r: /(\d{1,2})[月\/\-.](\d{1,2})[日号]?/, f: m => new Date(Y, m[1] - 1, +m[2]) },
     { r: /(\d{1,2})[日号]/, f: m => new Date(Y, M, +m[1]) },
     { r: /大后天/, f: () => addD(t, 3) },
+    { r: /後日|あさって/, f: () => addD(t, 2) },
     { r: /后天/, f: () => addD(t, 2) },
+    { r: /明日|あした/, f: () => addD(t, 1) },
     { r: /明天/, f: () => addD(t, 1) },
+    { r: /今日|きょう/, f: () => addD(t, 0) },
     { r: /今天/, f: () => addD(t, 0) },
+    { r: /来週([月火水木金土日])/, f: m => { const wd = wkJa(m[1]), diff = ((wd - dow + 7) % 7) || 7; return addD(t, diff); } },
     { r: /下下?(个)?周([一二三四五六日天])/, f: m => { const wd = wk(m[2]), diff = ((wd - dow + 7) % 7) || 7; return addD(t, diff + (m[0].startsWith("下下") ? 7 : 0)); } },
     { r: /(?:这个?)?周([一二三四五六日天])/, f: m => addD(t, wk(m[1]) - dow) },
     { r: /下(?:个)?星期([一二三四五六日天])/, f: m => { const diff = ((wk(m[1]) - dow + 7) % 7) || 7; return addD(t, diff); } },
     { r: /(?:这个?)?星期([一二三四五六日天])/, f: m => { const diff = ((wk(m[1]) - dow + 7) % 7); return addD(t, diff || 7); } },
+    { r: /([月火水木金土日])曜日?/, f: m => { const wd = wkJa(m[1]), diff = ((wd - dow + 7) % 7) || 7; return addD(t, diff); } },
     { r: /周末/, f: () => addD(t, ((6 - dow) + 7) % 7 || 7) },
   ];
   for (const p of dp) { const m = content.match(p.r); if (m) { date = p.f(m); content = content.replace(m[0], ""); break; } }
   const tp = [
-    { r: /(上午|早上|早晨|中午|下午|晚上|傍晚|凌晨)?(\d{1,2})[:|：](\d{2})/, f: m => ({ h: ap(+m[2], m[1]), m: +m[3] }) },
-    { r: /(上午|早上|早晨|中午|下午|晚上|傍晚|凌晨)?(\d{1,2})点半/, f: m => ({ h: ap(+m[2], m[1]), m: 30 }) },
-    { r: /(上午|早上|早晨|中午|下午|晚上|傍晚|凌晨)?(\d{1,2})点(\d{1,2})分?/, f: m => ({ h: ap(+m[2], m[1]), m: +m[3] }) },
-    { r: /(上午|早上|早晨|中午|下午|晚上|傍晚|凌晨)(\d{1,2})点/, f: m => ({ h: ap(+m[2], m[1]), m: 0 }) },
-    { r: /(\d{1,2})点/, f: m => ({ h: +m[1], m: 0 }) },
-    { r: /(上午|早上|早晨)/, f: () => ({ h: 9, m: 0 }) },
+    { r: /(上午|早上|早晨|中午|下午|晚上|傍晚|凌晨|午前|午後)?(\d{1,2})[:|：](\d{2})/, f: m => ({ h: ap(+m[2], m[1]), m: +m[3] }) },
+    { r: /(上午|早上|早晨|中午|下午|晚上|傍晚|凌晨|午前|午後)?(\d{1,2})点半/, f: m => ({ h: ap(+m[2], m[1]), m: 30 }) },
+    { r: /(上午|早上|早晨|中午|下午|晚上|傍晚|凌晨|午前|午後)?(\d{1,2})点(\d{1,2})分?/, f: m => ({ h: ap(+m[2], m[1]), m: +m[3] }) },
+    { r: /(上午|早上|早晨|中午|下午|晚上|傍晚|凌晨|午前|午後)(\d{1,2})[点時时]/, f: m => ({ h: ap(+m[2], m[1]), m: 0 }) },
+    { r: /(\d{1,2})[点時时]/, f: m => ({ h: +m[1], m: 0 }) },
+    { r: /(上午|早上|早晨|午前)/, f: () => ({ h: 9, m: 0 }) },
     { r: /中午/, f: () => ({ h: 12, m: 0 }) },
-    { r: /下午/, f: () => ({ h: 14, m: 0 }) },
-    { r: /(晚上|傍晚)/, f: () => ({ h: 19, m: 0 }) },
+    { r: /(下午|午後)/, f: () => ({ h: 14, m: 0 }) },
+    { r: /(晚上|傍晚|夜)/, f: () => ({ h: 19, m: 0 }) },
     { r: /凌晨/, f: () => ({ h: 2, m: 0 }) },
   ];
   for (const p of tp) { const m = content.match(p.r); if (m) { time = p.f(m); content = content.replace(m[0], ""); break; } }
@@ -98,7 +86,8 @@ function parseNL(text, today) {
 }
 function addD(d, n) { const r = new Date(d); r.setDate(r.getDate() + n); return r; }
 function wk(c) { return { "一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "日": 0, "天": 0 }[c] ?? 0; }
-function ap(h, p) { if (!p) return h; if ((p === "下午" || p === "晚上" || p === "傍晚") && h < 12) return h + 12; if ((p === "上午" || p === "早上" || p === "早晨" || p === "凌晨") && h === 12) return 0; return h; }
+function wkJa(c) { return { "月": 1, "火": 2, "水": 3, "木": 4, "金": 5, "土": 6, "日": 0 }[c] ?? 0; }
+function ap(h, p) { if (!p) return h; if ((p === "下午" || p === "晚上" || p === "傍晚" || p === "午後") && h < 12) return h + 12; if ((p === "上午" || p === "早上" || p === "早晨" || p === "凌晨" || p === "午前") && h === 12) return 0; return h; }
 function ft(t) { if (!t) return null; return `${String(t.h).padStart(2, "0")}:${String(t.m).padStart(2, "0")}`; }
 function dKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function pKey(k) { const [y, m, d] = k.split("-").map(Number); return new Date(y, m - 1, d); }
@@ -114,56 +103,28 @@ const IcoX = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" s
 const IcoCheck = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12" /></svg>;
 const IcoMic = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="1" width="6" height="12" rx="3" /><path d="M19 10v2a7 7 0 01-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>;
 const IcoPlus = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
-
-const IcoCheckCircle = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11.5 14.5 16 9.5"/></svg>;
-
-/* ───── reducer ───── */
-function reducer(s, a) {
-  switch (a.type) {
-    case "LOAD": return a.events;
-    case "ADD": return [...s, a.event];
-    case "UPDATE": return s.map(e => e.id === a.event.id ? a.event : e);
-    case "DELETE": return s.filter(e => e.id !== a.id);
-    case "TOGGLE_DONE": return s.map(e => e.id === a.id ? { ...e, done: !e.done } : e);
-    default: return s;
-  }
-}
+const IcoCheckCircle = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="9 12 11.5 14.5 16 9.5" /></svg>;
 
 /* ───── i18n ───── */
 const i18n = {
   zh: {
     wdays: ["日", "一", "二", "三", "四", "五", "六"],
     months: ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二"],
-    monthSuffix: "月",
-    today: "今天",
-    thisMonth: "本月安排",
-    noEvents: "暂无日程，点击 + 添加",
-    noEventsDay: "当天暂无安排",
-    viewAll: "查看全月",
-    addEvent: "添加日程",
-    save: "保存",
-    edit: "编辑事项",
-    editHint: "直接修改这句话，系统会自动识别日期和时间",
-    dateLabel: "日期",
-    timeLabel: "时间",
-    contentLabel: "内容",
-    timeUndecided: "时间未定",
-    inputHint: "说一句话或打字输入",
+    monthSuffix: "月", today: "今天", thisMonth: "本月安排",
+    noEvents: "暂无日程，点击 + 添加", noEventsDay: "当天暂无安排",
+    viewAll: "查看全月", addEvent: "添加日程", save: "保存",
+    edit: "编辑事项", editHint: "直接修改这句话，系统会自动识别日期和时间",
+    dateLabel: "日期", timeLabel: "时间", contentLabel: "内容",
+    timeUndecided: "时间未定", inputHint: "说一句话或打字输入",
     listening: "正在聆听...",
     placeholder: "明天下午3点开会\n周五提交资料\n下周二和朋友吃饭",
-    noDate: "未能识别日期，请再试试",
-    noContent: "未能识别事项内容",
-    added: "已添加：",
-    deleted: "已删除",
-    updated: "已更新",
-    logout: "退出登录",
-    loginTitle: "我的日历",
-    loginSub: "我们的征途是星辰大海",
+    noDate: "未能识别日期，请再试试", noContent: "未能识别事项内容",
+    added: "已添加：", deleted: "已删除", updated: "已更新",
+    logout: "退出登录", upcoming: "待发生", done: "已完成",
+    loginTitle: "我的日历", loginSub: "我们的征途是星辰大海",
     loginDesc: "输入你的专属口令，数据会安全保存在云端",
-    loginPlaceholder: "输入你的专属口令",
-    loginBtn: "进入日历",
-    loginLoading: "进入中...",
-    loginTip: "口令就是你的钥匙，请记住它",
+    loginPlaceholder: "输入你的专属口令", loginBtn: "进入日历",
+    loginLoading: "进入中...", loginTip: "口令就是你的钥匙，请记住它",
     weekPrefix: "周",
     dayGroup: (day, wd) => `${day}日 · 周${wd}`,
     dateDisplay: (m, d) => `${m}月${d}日`,
@@ -173,36 +134,21 @@ const i18n = {
   ja: {
     wdays: ["日", "月", "火", "水", "木", "金", "土"],
     months: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"],
-    monthSuffix: "月",
-    today: "今日",
-    thisMonth: "今月の予定",
-    noEvents: "予定なし、+ で追加",
-    noEventsDay: "この日の予定はありません",
-    viewAll: "月全体を見る",
-    addEvent: "予定を追加",
-    save: "保存",
-    edit: "予定を編集",
-    editHint: "この文を直接修正してください。日付と時間は自動認識されます",
-    dateLabel: "日付",
-    timeLabel: "時間",
-    contentLabel: "内容",
-    timeUndecided: "時間未定",
-    inputHint: "一言で入力、または音声入力",
+    monthSuffix: "月", today: "今日", thisMonth: "今月の予定",
+    noEvents: "予定なし、+ で追加", noEventsDay: "この日の予定はありません",
+    viewAll: "月全体を見る", addEvent: "予定を追加", save: "保存",
+    edit: "予定を編集", editHint: "この文を直接修正してください",
+    dateLabel: "日付", timeLabel: "時間", contentLabel: "内容",
+    timeUndecided: "時間未定", inputHint: "一言で入力、または音声入力",
     listening: "聞いています...",
-    placeholder: "明日午後3時に会議\n金曜日に資料提出\n来週火曜日に友達とご飯",
-    noDate: "日付を認識できませんでした",
-    noContent: "内容を認識できませんでした",
-    added: "追加しました：",
-    deleted: "削除しました",
-    updated: "更新しました",
-    logout: "ログアウト",
-    loginTitle: "マイカレンダー",
-    loginSub: "星と海が私たちの旅路",
-    loginDesc: "あなた専用のパスワードを入力してください。データはクラウドに保存されます",
-    loginPlaceholder: "パスワードを入力",
-    loginBtn: "カレンダーに入る",
-    loginLoading: "読み込み中...",
-    loginTip: "パスワードはあなたの鍵です。忘れないでください",
+    placeholder: "明日午後3時に会議\n金曜日に資料提出\n来週火曜日にご飯",
+    noDate: "日付を認識できませんでした", noContent: "内容を認識できませんでした",
+    added: "追加：", deleted: "削除しました", updated: "更新しました",
+    logout: "ログアウト", upcoming: "予定", done: "完了",
+    loginTitle: "マイカレンダー", loginSub: "星と海が私たちの旅路",
+    loginDesc: "パスワードを入力してください",
+    loginPlaceholder: "パスワードを入力", loginBtn: "カレンダーに入る",
+    loginLoading: "読み込み中...", loginTip: "パスワードを忘れないでください",
     weekPrefix: "",
     dayGroup: (day, wd) => `${day}日（${wd}）`,
     dateDisplay: (m, d) => `${m}月${d}日`,
@@ -219,7 +165,17 @@ function useLang() {
   return { lang, t: i18n[lang], toggle };
 }
 
-const WDAYS_ZH = ["日", "一", "二", "三", "四", "五", "六"];
+/* ───── reducer ───── */
+function reducer(s, a) {
+  switch (a.type) {
+    case "LOAD": return a.events;
+    case "ADD": return [...s, a.event];
+    case "UPDATE": return s.map(e => e.id === a.event.id ? a.event : e);
+    case "DELETE": return s.filter(e => e.id !== a.id);
+    case "TOGGLE_DONE": return s.map(e => e.id === a.id ? { ...e, done: !e.done } : e);
+    default: return s;
+  }
+}
 
 /* ───── speech hook ───── */
 function useSpeech() {
@@ -235,8 +191,8 @@ function useSpeech() {
       r.onend = () => setL(false); r.onerror = () => setL(false); ref.current = r;
     }
   }, []);
-  const start = useCallback(() => { if (ref.current && !listening) { setT(""); try { ref.current.start(); setL(true); } catch { } } }, [listening]);
-  const stop = useCallback(() => { if (ref.current && listening) try { ref.current.stop(); } catch { } }, [listening]);
+  const start = useCallback(() => { if (ref.current && !listening) { setT(""); try { ref.current.start(); setL(true); } catch {} } }, [listening]);
+  const stop = useCallback(() => { if (ref.current && listening) try { ref.current.stop(); } catch {} }, [listening]);
   return { listening, transcript, supported, start, stop };
 }
 
@@ -244,17 +200,11 @@ function useSpeech() {
 function useSwipe(onLeft, onRight) {
   const startX = useRef(0);
   const startY = useRef(0);
-  const onTouchStart = useCallback((e) => {
-    startX.current = e.touches[0].clientX;
-    startY.current = e.touches[0].clientY;
-  }, []);
+  const onTouchStart = useCallback((e) => { startX.current = e.touches[0].clientX; startY.current = e.touches[0].clientY; }, []);
   const onTouchEnd = useCallback((e) => {
     const dx = e.changedTouches[0].clientX - startX.current;
     const dy = e.changedTouches[0].clientY - startY.current;
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      if (dx > 0) onRight();
-      else onLeft();
-    }
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) { if (dx > 0) onRight(); else onLeft(); }
   }, [onLeft, onRight]);
   return { onTouchStart, onTouchEnd };
 }
@@ -265,32 +215,14 @@ const GRAD = "linear-gradient(135deg, #E879A8, #C084FC, #A78BFA)";
 function LoginScreen({ onLogin, lang, t, toggleLang }) {
   const [phrase, setPhrase] = useState("");
   const [loading, setLoading] = useState(false);
-
-  // check saved session
-  useEffect(() => {
-    const saved = localStorage.getItem("cal-owner");
-    if (saved) onLogin(saved);
-  }, [onLogin]);
-
-  const handleLogin = async () => {
-    const p = phrase.trim();
-    if (!p) return;
-    setLoading(true);
-    localStorage.setItem("cal-owner", p);
-    onLogin(p);
-  };
-
+  useEffect(() => { const saved = localStorage.getItem("cal-owner"); if (saved) onLogin(saved); }, [onLogin]);
+  const handleLogin = () => { const p = phrase.trim(); if (!p) return; setLoading(true); localStorage.setItem("cal-owner", p); onLogin(p); };
   return (
     <div style={LS.wrap}>
-      {/* banner illustration */}
       <div style={LS.bannerWrap}>
         <svg viewBox="0 0 400 200" style={{ width: "100%", height: "100%", display: "block" }} preserveAspectRatio="xMidYMid slice">
           <defs>
-            <linearGradient id="lsky" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#C4B5FD" />
-              <stop offset="50%" stopColor="#DDD6FE" />
-              <stop offset="100%" stopColor="#F0ABFC" />
-            </linearGradient>
+            <linearGradient id="lsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#C4B5FD" /><stop offset="50%" stopColor="#DDD6FE" /><stop offset="100%" stopColor="#F0ABFC" /></linearGradient>
             <linearGradient id="lm1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.6" /><stop offset="100%" stopColor="#7C3AED" stopOpacity="0.4" /></linearGradient>
             <linearGradient id="lm2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#A78BFA" stopOpacity="0.7" /><stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.5" /></linearGradient>
             <linearGradient id="lm3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#C4B5FD" stopOpacity="0.6" /><stop offset="100%" stopColor="#A78BFA" stopOpacity="0.4" /></linearGradient>
@@ -298,8 +230,7 @@ function LoginScreen({ onLogin, lang, t, toggleLang }) {
             <radialGradient id="lsun" cx="0.75" cy="0.25"><stop offset="0%" stopColor="#FDE68A" stopOpacity="0.8" /><stop offset="100%" stopColor="#FDE68A" stopOpacity="0" /></radialGradient>
           </defs>
           <rect width="400" height="200" fill="url(#lsky)" />
-          <circle cx="320" cy="50" r="60" fill="url(#lsun)" />
-          <circle cx="320" cy="50" r="18" fill="#FDE68A" opacity="0.5" />
+          <circle cx="320" cy="50" r="60" fill="url(#lsun)" /><circle cx="320" cy="50" r="18" fill="#FDE68A" opacity="0.5" />
           <circle cx="40" cy="30" r="1.5" fill="white" opacity="0.7" /><circle cx="100" cy="18" r="1" fill="white" opacity="0.5" /><circle cx="170" cy="35" r="1.2" fill="white" opacity="0.6" /><circle cx="240" cy="15" r="1.5" fill="white" opacity="0.4" />
           <polygon points="0,140 60,90 120,110 180,75 240,100 300,65 360,85 400,95 400,155 0,155" fill="url(#lm3)" />
           <polygon points="0,155 40,120 100,135 160,100 220,125 280,95 340,115 400,105 400,170 0,170" fill="url(#lm2)" />
@@ -310,29 +241,18 @@ function LoginScreen({ onLogin, lang, t, toggleLang }) {
           <line x1="260" y1="176" x2="320" y2="176" stroke="white" strokeWidth="0.7" opacity="0.25" />
         </svg>
       </div>
-
       <div style={LS.content}>
         <button style={LS.langBtn} onClick={toggleLang}>{lang === "zh" ? "日本語" : "中文"}</button>
         <div style={LS.title}>{t.loginTitle}</div>
         <div style={LS.sub}>{t.loginSub}</div>
         <div style={LS.desc}>{t.loginDesc}</div>
-        <input
-          style={LS.input}
-          type="password"
-          value={phrase}
-          onChange={e => setPhrase(e.target.value)}
-          onKeyDown={e => { if (e.key === "Enter") handleLogin(); }}
-          placeholder={t.loginPlaceholder}
-        />
-        <button style={{ ...LS.btn, opacity: phrase.trim() ? 1 : 0.45 }} onClick={handleLogin} disabled={!phrase.trim() || loading}>
-          {loading ? t.loginLoading : t.loginBtn}
-        </button>
+        <input style={LS.input} type="password" value={phrase} onChange={e => setPhrase(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleLogin(); }} placeholder={t.loginPlaceholder} />
+        <button style={{ ...LS.btn, opacity: phrase.trim() ? 1 : 0.45 }} onClick={handleLogin} disabled={!phrase.trim() || loading}>{loading ? t.loginLoading : t.loginBtn}</button>
         <div style={LS.tip}>{t.loginTip}</div>
       </div>
     </div>
   );
 }
-
 const LS = {
   wrap: { fontFamily: "-apple-system,BlinkMacSystemFont,'PingFang SC',sans-serif", maxWidth: 430, margin: "0 auto", background: "#F5F5F5", minHeight: "100vh" },
   bannerWrap: { width: "100%", height: 200, overflow: "hidden" },
@@ -371,25 +291,20 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
     const p = parseNL(txt, new Date());
     if (!p.date) { showToast(t.noDate, "error"); return; }
     if (!p.content) { showToast(t.noContent, "error"); return; }
-    const ev = { id: uid(), owner, date: dKey(p.date), time: p.time ? ft(p.time) : null, content: p.content };
+    const ev = { id: uid(), owner, date: dKey(p.date), time: p.time ? ft(p.time) : null, content: p.content, done: false };
     dispatch({ type: "ADD", event: ev });
     setInputText(""); setShowInput(false); speech.stop();
     showToast(`${t.added}${p.content}`);
     setCY(p.date.getFullYear()); setCM(p.date.getMonth());
     await insertEvent(ev);
-  }, [inputText, showToast, speech, owner]);
+  }, [inputText, showToast, speech, owner, t]);
 
   const openInput = useCallback(() => {
-    // if a day is selected, pre-fill the date
-    if (selDay) {
-      const d = pKey(selDay);
-      setInputText(`${d.getMonth()+1}月${d.getDate()}日 `);
-    } else {
-      setInputText("");
-    }
-    setShowInput(true);
-    setTimeout(() => inputRef.current?.focus(), 150);
+    if (selDay) { const d = pKey(selDay); setInputText(`${d.getMonth() + 1}月${d.getDate()}日 `); }
+    else { setInputText(""); }
+    setShowInput(true); setTimeout(() => inputRef.current?.focus(), 150);
   }, [selDay]);
+
   const closeInput = useCallback(() => { setShowInput(false); setInputText(""); speech.stop(); }, [speech]);
   const toggleMic = useCallback(() => { if (speech.listening) speech.stop(); else speech.start(); }, [speech]);
 
@@ -434,20 +349,16 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
 
   const allSorted = useMemo(() => [...events].sort((a, b) => a.date === b.date ? (a.time || "99:99").localeCompare(b.time || "99:99") : a.date.localeCompare(b.date)), [events]);
 
-  const dotColors = ["#E879A8", "#C084FC", "#A78BFA", "#F0ABCF"];
-  const getDot = j => dotColors[j % dotColors.length];
-
   const swipe = useSwipe(next, prev);
-
   const logout = () => { localStorage.removeItem("cal-owner"); window.location.reload(); };
 
-  if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", color: "#C084FC", fontFamily: "sans-serif" }}>加载中...</div>;
+  if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", color: "#C084FC", fontFamily: "sans-serif" }}>{t.loginLoading}</div>;
 
   return (
     <div style={S.app}>
       {/* HEADER */}
       <div style={S.header}>
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={S.monthLabel}>{t.months[cM]}{t.monthSuffix}</div>
           <button style={S.langToggle} onClick={toggleLang}>{lang === "zh" ? "JP" : "中"}</button>
         </div>
@@ -483,9 +394,7 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
             <rect y="115" width="400" height="25" fill="url(#sea)" />
             <line x1="30" y1="122" x2="70" y2="122" stroke="white" strokeWidth="0.8" opacity="0.3" /><line x1="200" y1="120" x2="250" y2="120" stroke="white" strokeWidth="0.7" opacity="0.3" /><line x1="350" y1="125" x2="390" y2="125" stroke="white" strokeWidth="0.6" opacity="0.25" />
           </svg>
-          <div style={S.bannerText}>
-            <div style={S.bannerQuote}>我们的征途是星辰大海</div>
-          </div>
+          <div style={S.bannerText}><div style={S.bannerQuote}>{t.loginSub}</div></div>
         </div>
       </div>
 
@@ -498,9 +407,10 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
               if (day === null) return <div key={"e" + i} style={S.cell} />;
               const key = `${cY}-${String(cM + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
               const isToday = key === todayKey;
-              const hasEv = !!eMap[key]?.length;
-              const allDone = hasEv && eMap[key].every(e => e.done);
-              const hasUndone = hasEv && eMap[key].some(e => !e.done);
+              const dayEvs = eMap[key] || [];
+              const hasEv = dayEvs.length > 0;
+              const allDone = hasEv && dayEvs.every(e => e.done);
+              const hasUndone = hasEv && dayEvs.some(e => !e.done);
               const isSel = selDay === key && !isToday;
               return (
                 <div key={key} style={{ ...S.cell, ...(isSel ? S.cellSel : {}) }} onClick={() => setSelDay(selDay === key ? null : key)}>
@@ -512,25 +422,45 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
         </div>
 
         <div style={S.schedArea}>
-          <div style={S.schedHeader}>
-            {selDay ? (() => { const d = pKey(selDay); return <><span style={S.schedDate}>{d.getMonth() + 1}月{d.getDate()}日</span><span style={S.schedWk}> 周{WDAYS[d.getDay()]}</span></>; })()
-              : <span style={S.schedDate}>本月安排</span>}
-          </div>
           {selDay ? (<>
-            {(eMap[selDay] || []).length === 0 && <div style={S.empty}>当天暂无安排</div>}
-            {(eMap[selDay] || []).map((ev, j) => (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <div><span style={S.schedDate}>{t.dateDisplay(pKey(selDay).getMonth() + 1, pKey(selDay).getDate())}</span><span style={S.schedWk}> {t.weekPrefix}{t.wdays[pKey(selDay).getDay()]}</span></div>
+              <button style={{ ...S.iBtn, fontSize: 12, color: "#C084FC" }} onClick={() => setSelDay(null)}>{t.viewAll}</button>
+            </div>
+            {(eMap[selDay] || []).filter(e => !e.done).length === 0 && !(eMap[selDay] || []).some(e => e.done) && <div style={S.empty}>{t.noEventsDay}</div>}
+            {(eMap[selDay] || []).filter(e => !e.done).map(ev => (
               <div key={ev.id} style={S.evCard}>
-                <div style={{ ...S.evDot, background: getDot(j) }} />
-                <div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || "时间未定"}</div></div>
+                <button style={S.checkBtn} onClick={() => handleToggle(ev.id)}><IcoCheckCircle /></button>
+                <div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div>
                 <div style={S.evActs}>
                   <button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button>
                   <button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button>
                 </div>
               </div>
             ))}
+            {(eMap[selDay] || []).some(e => e.done) && <>
+              <div style={S.doneLabel}>{t.done}</div>
+              {(eMap[selDay] || []).filter(e => e.done).map(ev => (
+                <div key={ev.id} style={{ ...S.evCard, opacity: 0.5 }}>
+                  <button style={{ ...S.checkBtn, color: "#C084FC" }} onClick={() => handleToggle(ev.id)}><IcoCheckCircle /></button>
+                  <div style={S.evBody}><div style={{ ...S.evContent, textDecoration: "line-through", color: "#999" }}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div>
+                </div>
+              ))}
+            </>}
           </>) : (<>
-            {grouped.length === 0 && <div style={S.empty}>暂无日程，点击 + 添加</div>}
-            {grouped.map(g => { const d = pKey(g.date); return (<div key={g.date}><div style={S.groupLabel}>{d.getDate()}日 · 周{WDAYS[d.getDay()]}</div>{g.items.map((ev, j) => (<div key={ev.id} style={S.evCard} onClick={() => setSelDay(g.date)}><div style={{ ...S.evDot, background: getDot(j) }} /><div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || "时间未定"}</div></div></div>))}</div>); })}
+            <div style={S.schedHeader}><span style={S.schedDate}>{t.thisMonth}</span></div>
+            {grouped.every(g => g.items.every(e => e.done)) && <div style={S.empty}>{t.noEvents}</div>}
+            {grouped.map(g => {
+              const d = pKey(g.date); const undone = g.items.filter(e => !e.done);
+              if (undone.length === 0) return null;
+              return (<div key={g.date}><div style={S.groupLabel}>{t.dayGroup(d.getDate(), t.wdays[d.getDay()])}</div>
+                {undone.map(ev => (
+                  <div key={ev.id} style={S.evCard} onClick={() => setSelDay(g.date)}>
+                    <button style={S.checkBtn} onClick={e => { e.stopPropagation(); handleToggle(ev.id); }}><IcoCheckCircle /></button>
+                    <div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div>
+                  </div>
+                ))}</div>);
+            })}
           </>)}
         </div>
       </>}
@@ -539,13 +469,29 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
       {view === "list" && (
         <div style={S.listArea}>
           {allSorted.length === 0 && <div style={S.empty}>{t.noEvents}</div>}
-          {allSorted.some(e=>!e.done) && <>
-            <div style={S.listSectionTitle}>{lang==="zh"?"待发生":"予定"}</div>
-            {allSorted.filter(e=>!e.done).map((ev, j) => { const d = pKey(ev.date); return (<div key={ev.id} style={{ marginBottom: 8 }}><div style={S.listDateLabel}>{t.listDate(d.getMonth()+1, d.getDate(), t.wdays[d.getDay()])}</div><div style={S.evCard}><button style={S.checkBtn} onClick={()=>handleToggle(ev.id)}><IcoCheckCircle/></button><div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div><div style={S.evActs}><button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button><button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button></div></div></div>); })}
+          {allSorted.some(e => !e.done) && <>
+            <div style={S.listSectionTitle}>{t.upcoming}</div>
+            {allSorted.filter(e => !e.done).map(ev => { const d = pKey(ev.date); return (
+              <div key={ev.id} style={{ marginBottom: 8 }}>
+                <div style={S.listDateLabel}>{t.listDate(d.getMonth() + 1, d.getDate(), t.wdays[d.getDay()])}</div>
+                <div style={S.evCard}>
+                  <button style={S.checkBtn} onClick={() => handleToggle(ev.id)}><IcoCheckCircle /></button>
+                  <div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div>
+                  <div style={S.evActs}><button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button><button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button></div>
+                </div>
+              </div>); })}
           </>}
-          {allSorted.some(e=>e.done) && <>
-            <div style={{...S.listSectionTitle, color:"#999"}}>{lang==="zh"?"已完成":"完了"}</div>
-            {allSorted.filter(e=>e.done).map((ev, j) => { const d = pKey(ev.date); return (<div key={ev.id} style={{ marginBottom: 8 }}><div style={{...S.listDateLabel, color:"#C0C0C0"}}>{t.listDate(d.getMonth()+1, d.getDate(), t.wdays[d.getDay()])}</div><div style={{...S.evCard, opacity:0.5}}><button style={{...S.checkBtn,color:"#C084FC"}} onClick={()=>handleToggle(ev.id)}><IcoCheckCircle/></button><div style={S.evBody}><div style={{...S.evContent,textDecoration:"line-through",color:"#999"}}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div><div style={S.evActs}><button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button><button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button></div></div></div>); })}
+          {allSorted.some(e => e.done) && <>
+            <div style={{ ...S.listSectionTitle, color: "#999" }}>{t.done}</div>
+            {allSorted.filter(e => e.done).map(ev => { const d = pKey(ev.date); return (
+              <div key={ev.id} style={{ marginBottom: 8 }}>
+                <div style={{ ...S.listDateLabel, color: "#C0C0C0" }}>{t.listDate(d.getMonth() + 1, d.getDate(), t.wdays[d.getDay()])}</div>
+                <div style={{ ...S.evCard, opacity: 0.5 }}>
+                  <button style={{ ...S.checkBtn, color: "#C084FC" }} onClick={() => handleToggle(ev.id)}><IcoCheckCircle /></button>
+                  <div style={S.evBody}><div style={{ ...S.evContent, textDecoration: "line-through", color: "#999" }}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div>
+                  <div style={S.evActs}><button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button><button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button></div>
+                </div>
+              </div>); })}
           </>}
         </div>
       )}
@@ -592,9 +538,7 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
       )}
 
       {/* LOGOUT */}
-      <div style={S.logoutWrap}>
-        <button style={S.logoutBtn} onClick={logout}>{t.logout}</button>
-      </div>
+      <div style={S.logoutWrap}><button style={S.logoutBtn} onClick={logout}>{t.logout}</button></div>
     </div>
   );
 }
@@ -604,6 +548,7 @@ const S = {
   app: { fontFamily: "-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB',sans-serif", maxWidth: 430, margin: "0 auto", background: "#F5F5F5", minHeight: "100vh", color: "#1A1A1A", fontSize: 14, paddingBottom: 100, position: "relative" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 20px 6px" },
   monthLabel: { fontSize: 28, fontWeight: 800, letterSpacing: -0.5, background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" },
+  langToggle: { background: "#F3E8FF", border: "none", borderRadius: 8, padding: "4px 10px", fontSize: 11, fontWeight: 700, color: "#C084FC", cursor: "pointer" },
   headerR: { display: "flex", gap: 6, alignItems: "center" },
   todayBtn: { background: "#fff", border: "1px solid #E5E5E5", borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "#C084FC", cursor: "pointer" },
   arrBtn: { background: "none", border: "none", color: "#C084FC", cursor: "pointer", padding: 2 },
@@ -629,7 +574,6 @@ const S = {
   schedWk: { fontSize: 14, fontWeight: 500, color: "#C084FC" },
   groupLabel: { fontSize: 13, fontWeight: 600, color: "#999", margin: "14px 0 6px" },
   evCard: { display: "flex", alignItems: "center", background: "#fff", borderRadius: 12, marginBottom: 8, padding: "12px 14px", boxShadow: "0 1px 4px rgba(0,0,0,0.04)", cursor: "pointer" },
-  evDot: { width: 10, height: 10, borderRadius: "50%", flexShrink: 0, marginRight: 12 },
   evBody: { flex: 1, minWidth: 0 },
   evContent: { fontSize: 15, fontWeight: 500, color: "#1A1A1A", lineHeight: 1.4 },
   evTime: { fontSize: 12, color: "#999", marginTop: 2 },
@@ -664,7 +608,7 @@ const S = {
   logoutBtn: { background: "none", border: "none", color: "#C0C0C0", fontSize: 12, cursor: "pointer" },
 };
 
-/* ═══════ ROOT EXPORT ═══════ */
+/* ═══════ ROOT ═══════ */
 export default function App() {
   const [owner, setOwner] = useState(null);
   const { lang, t, toggle } = useLang();
