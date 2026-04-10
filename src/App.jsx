@@ -129,9 +129,7 @@ const i18n = {
 
 function useLang() {
   const [lang, setLang] = useState(() => localStorage.getItem("cal-lang") || "zh");
-  const toggle = useCallback(() => {
-    setLang(prev => { const next = prev === "zh" ? "ja" : "zh"; localStorage.setItem("cal-lang", next); return next; });
-  }, []);
+  const toggle = useCallback(() => { setLang(prev => { const next = prev === "zh" ? "ja" : "zh"; localStorage.setItem("cal-lang", next); return next; }); }, []);
   return { lang, t: i18n[lang], toggle };
 }
 
@@ -164,6 +162,14 @@ function useSwipe(onLeft, onRight) {
 }
 
 const GRAD = "linear-gradient(135deg, #E879A8, #C084FC, #A78BFA)";
+
+/* ═══ slide animation ═══ */
+const calAnimStyle = document.createElement("style");
+calAnimStyle.textContent = `
+@keyframes calSlideLeft { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes calSlideRight { from { transform: translateX(-40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+`;
+if (typeof document !== "undefined" && !document.getElementById("cal-anim")) { calAnimStyle.id = "cal-anim"; document.head.appendChild(calAnimStyle); }
 
 /* ═══ LOGIN ═══ */
 function LoginScreen({ onLogin, lang, t, toggleLang }) {
@@ -228,6 +234,8 @@ function CalendarApp({ owner, t }) {
   const [showInput, setShowInput] = useState(false);
   const [inputText, setInputText] = useState("");
   const [loading, setLoading] = useState(true);
+  const [slideDir, setSlideDir] = useState(null);
+  const [slideKey, setSlideKey] = useState(0);
   const inputRef = useRef(null);
   const speech = useSpeech();
 
@@ -258,9 +266,9 @@ function CalendarApp({ owner, t }) {
   const handleToggle = useCallback(async (id) => { dispatch({ type: "TOGGLE_DONE", id }); const ev = events.find(e => e.id === id); if (ev) await updateEvent({ ...ev, done: !ev.done }); }, [events]);
   const handleUpd = useCallback(async (ev) => { const { _raw, ...clean } = ev; dispatch({ type: "UPDATE", event: clean }); setEditing(null); showToast(t.updated); await updateEvent(clean); }, [showToast, t]);
 
-  const prev = () => { setSelDay(null); if (cM === 0) { setCY(y => y - 1); setCM(11); } else setCM(m => m - 1); };
-  const next = () => { setSelDay(null); if (cM === 11) { setCY(y => y + 1); setCM(0); } else setCM(m => m + 1); };
-  const goToday = () => { setSelDay(null); setCY(new Date().getFullYear()); setCM(new Date().getMonth()); };
+  const prev = () => { setSlideDir("right"); setSlideKey(k => k + 1); setSelDay(null); if (cM === 0) { setCY(y => y - 1); setCM(11); } else setCM(m => m - 1); };
+  const next = () => { setSlideDir("left"); setSlideKey(k => k + 1); setSelDay(null); if (cM === 11) { setCY(y => y + 1); setCM(0); } else setCM(m => m + 1); };
+  const goToday = () => { setSlideDir(null); setSlideKey(k => k + 1); setSelDay(null); setCY(new Date().getFullYear()); setCM(new Date().getMonth()); };
 
   const eMap = useMemo(() => { const m = {}; events.forEach(e => { (m[e.date] = m[e.date] || []).push(e); }); Object.values(m).forEach(a => a.sort((a, b) => (a.time || "99:99").localeCompare(b.time || "99:99"))); return m; }, [events]);
   const grid = useMemo(() => { const sd = new Date(cY, cM, 1).getDay(), dim = new Date(cY, cM + 1, 0).getDate(); const c = []; for (let i = 0; i < sd; i++) c.push(null); for (let d = 1; d <= dim; d++) c.push(d); while (c.length % 7) c.push(null); return c; }, [cY, cM]);
@@ -273,12 +281,11 @@ function CalendarApp({ owner, t }) {
 
   if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", color: "#C084FC", fontFamily: "sans-serif" }}>{t.loginLoading}</div>;
 
-  /* ── card renderer ── */
-  const EvCard = ({ ev, showEdit = true, onClick }) => (
+  const EvCard = ({ ev, onClick }) => (
     <div style={S.evCard} onClick={onClick}>
       <div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div>
       <div style={S.evActs}>
-        {showEdit && <button style={S.iBtn} onClick={e => { e.stopPropagation(); setEditing({ ...ev }); }}><IcoEdit /></button>}
+        <button style={S.iBtn} onClick={e => { e.stopPropagation(); setEditing({ ...ev }); }}><IcoEdit /></button>
         <button style={S.iBtn} onClick={e => { e.stopPropagation(); handleToggle(ev.id); }}><IcoCheckCircle /></button>
       </div>
     </div>
@@ -290,9 +297,10 @@ function CalendarApp({ owner, t }) {
     </div>
   );
 
+  const slideAnim = slideDir === "left" ? "calSlideLeft .3s ease-out" : slideDir === "right" ? "calSlideRight .3s ease-out" : "none";
+
   return (
     <div style={S.app}>
-      {/* HEADER */}
       <div style={S.header}>
         <div style={S.monthLabel}>{t.months[cM]}{t.monthSuffix}</div>
         <div style={S.headerR}>
@@ -306,7 +314,6 @@ function CalendarApp({ owner, t }) {
         </div>
       </div>
 
-      {/* BANNER */}
       <div style={S.bannerWrap}>
         <div style={S.banner}>
           <svg viewBox="0 0 400 140" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: 16 }} preserveAspectRatio="xMidYMid slice">
@@ -330,26 +337,27 @@ function CalendarApp({ owner, t }) {
         </div>
       </div>
 
-      {/* CALENDAR VIEW */}
       {view === "calendar" && <>
         <div style={S.calCard} {...swipe}>
-          <div style={S.calGrid}>
-            {t.wdays.map(d => <div key={d} style={S.dow}>{d}</div>)}
-            {grid.map((day, i) => {
-              if (day === null) return <div key={"e" + i} style={S.cell} />;
-              const key = `${cY}-${String(cM + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-              const isToday = key === todayKey;
-              const dayEvs = eMap[key] || [];
-              const hasEv = dayEvs.length > 0;
-              const allDone = hasEv && dayEvs.every(e => e.done);
-              const hasUndone = hasEv && dayEvs.some(e => !e.done);
-              const isSel = selDay === key && !isToday;
-              return (
-                <div key={key} style={{ ...S.cell, ...(isSel ? S.cellSel : {}) }} onClick={() => setSelDay(selDay === key ? null : key)}>
-                  <div style={{ ...S.dayNum, ...(isToday ? S.dayToday : {}), ...(hasUndone && !isToday ? S.dayHasEv : {}), ...(allDone && !isToday ? S.dayAllDone : {}), fontWeight: hasEv || isToday ? 700 : 400 }}>{day}</div>
-                </div>
-              );
-            })}
+          <div key={slideKey} style={{ animation: slideAnim, overflow: "hidden" }}>
+            <div style={S.calGrid}>
+              {t.wdays.map(d => <div key={d} style={S.dow}>{d}</div>)}
+              {grid.map((day, i) => {
+                if (day === null) return <div key={"e" + i} style={S.cell} />;
+                const key = `${cY}-${String(cM + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                const isToday = key === todayKey;
+                const dayEvs = eMap[key] || [];
+                const hasEv = dayEvs.length > 0;
+                const allDone = hasEv && dayEvs.every(e => e.done);
+                const hasUndone = hasEv && dayEvs.some(e => !e.done);
+                const isSel = selDay === key && !isToday;
+                return (
+                  <div key={key} style={{ ...S.cell, ...(isSel ? S.cellSel : {}) }} onClick={() => setSelDay(selDay === key ? null : key)}>
+                    <div style={{ ...S.dayNum, ...(isToday ? S.dayToday : {}), ...(hasUndone && !isToday ? S.dayHasEv : {}), ...(allDone && !isToday ? S.dayAllDone : {}), fontWeight: hasEv || isToday ? 700 : 400 }}>{day}</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -378,7 +386,6 @@ function CalendarApp({ owner, t }) {
         </div>
       </>}
 
-      {/* LIST VIEW */}
       {view === "list" && (
         <div style={S.listArea}>
           {allSorted.length === 0 && <div style={S.empty}>{t.noEvents}</div>}
@@ -401,10 +408,8 @@ function CalendarApp({ owner, t }) {
         </div>
       )}
 
-      {/* FAB */}
       {!showInput && <button style={S.fab} onClick={openInput}><IcoPlus /></button>}
 
-      {/* ADD SHEET */}
       {showInput && (
         <div style={S.overlay} onClick={closeInput}>
           <div style={S.sheet} onClick={e => e.stopPropagation()}>
@@ -419,10 +424,8 @@ function CalendarApp({ owner, t }) {
         </div>
       )}
 
-      {/* TOAST */}
       {toast && <div style={{ ...S.toast, background: toast.type === "error" ? "#FEF2F2" : "#F0FDF4", color: toast.type === "error" ? "#DC2626" : "#16A34A", borderColor: toast.type === "error" ? "#FECACA" : "#BBF7D0" }}>{toast.msg}</div>}
 
-      {/* EDIT SHEET */}
       {editing && (
         <div style={S.overlay} onClick={() => setEditing(null)}>
           <div style={S.sheet} onClick={e => e.stopPropagation()}>
@@ -443,7 +446,6 @@ function CalendarApp({ owner, t }) {
         </div>
       )}
 
-      {/* LOGOUT */}
       <div style={S.logoutWrap}><button style={S.logoutBtn} onClick={logout}>{t.logout}</button></div>
     </div>
   );
@@ -464,7 +466,7 @@ const S = {
   viewToggle: { display: "flex", background: "#F3E8FF", borderRadius: 8, padding: 2 },
   togBtn: { background: "none", border: "none", padding: "5px 8px", borderRadius: 6, color: "#C0C0C0", cursor: "pointer", display: "flex", alignItems: "center" },
   togActive: { background: "#fff", color: "#C084FC", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" },
-  calCard: { margin: "8px 16px 0", background: "#fff", borderRadius: 16, padding: "12px 8px 8px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)" },
+  calCard: { margin: "8px 16px 0", background: "#fff", borderRadius: 16, padding: "12px 8px 8px", boxShadow: "0 2px 8px rgba(0,0,0,0.04)", overflow: "hidden" },
   calGrid: { display: "grid", gridTemplateColumns: "repeat(7,1fr)" },
   dow: { textAlign: "center", fontSize: 12, fontWeight: 500, color: "#C0C0C0", padding: "4px 0 8px" },
   cell: { display: "flex", flexDirection: "column", alignItems: "center", padding: "6px 0 4px", cursor: "pointer", borderRadius: 10, minHeight: 44 },
