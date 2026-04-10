@@ -238,6 +238,9 @@ function CalendarApp({ owner, t }) {
   const [slideKey, setSlideKey] = useState(0);
   const inputRef = useRef(null);
   const speech = useSpeech();
+  const [bannerQuote, setBannerQuote] = useState(() => localStorage.getItem("cal-banner-quote") || null);
+  const [editingQuote, setEditingQuote] = useState(false);
+  const [quoteInput, setQuoteInput] = useState("");
 
   useEffect(() => { loadEvents(owner).then(e => { dispatch({ type: "LOAD", events: e }); setLoading(false); }); }, [owner]);
   useEffect(() => { if (speech.transcript) setInputText(speech.transcript); }, [speech.transcript]);
@@ -260,6 +263,11 @@ function CalendarApp({ owner, t }) {
     setShowInput(true); setTimeout(() => inputRef.current?.focus(), 150);
   }, [selDay]);
   const closeInput = useCallback(() => { setShowInput(false); setInputText(""); speech.stop(); }, [speech]);
+  const saveQuote = useCallback(() => {
+    const q = quoteInput.trim();
+    if (q) { localStorage.setItem("cal-banner-quote", q); setBannerQuote(q); }
+    setEditingQuote(false);
+  }, [quoteInput]);
   const toggleMic = useCallback(() => { if (speech.listening) speech.stop(); else speech.start(); }, [speech]);
 
   const handleDel = useCallback(async (id) => { dispatch({ type: "DELETE", id }); setEditing(null); showToast(t.deleted); await deleteEvent(id); }, [showToast, t]);
@@ -333,7 +341,20 @@ function CalendarApp({ owner, t }) {
             <rect y="115" width="400" height="25" fill="url(#sea)" />
             <line x1="30" y1="122" x2="70" y2="122" stroke="white" strokeWidth="0.8" opacity="0.3" /><line x1="200" y1="120" x2="250" y2="120" stroke="white" strokeWidth="0.7" opacity="0.3" /><line x1="350" y1="125" x2="390" y2="125" stroke="white" strokeWidth="0.6" opacity="0.25" />
           </svg>
-          <div style={S.bannerText}><div style={S.bannerQuote}>{t.loginSub}</div></div>
+          <div style={S.bannerText}>
+            {editingQuote ? (
+              <input
+                autoFocus
+                style={S.bannerInput}
+                value={quoteInput}
+                onChange={e => setQuoteInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") saveQuote(); if (e.key === "Escape") setEditingQuote(false); }}
+                onBlur={saveQuote}
+              />
+            ) : (
+              <div style={S.bannerQuote} onClick={() => { setQuoteInput(bannerQuote || t.loginSub); setEditingQuote(true); }} title="点击编辑">{bannerQuote || t.loginSub}</div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -462,7 +483,8 @@ const S = {
   bannerWrap: { padding: "0 16px", marginBottom: 4 },
   banner: { position: "relative", borderRadius: 16, height: 120, overflow: "hidden" },
   bannerText: { position: "absolute", bottom: 14, left: 18, zIndex: 1 },
-  bannerQuote: { fontSize: 15, fontWeight: 700, color: "#fff", textShadow: "0 1px 8px rgba(107,70,193,0.5)", letterSpacing: 1 },
+  bannerQuote: { fontSize: 15, fontWeight: 700, color: "#fff", textShadow: "0 1px 8px rgba(107,70,193,0.5)", letterSpacing: 1, cursor: "pointer" },
+  bannerInput: { fontSize: 15, fontWeight: 700, color: "#fff", letterSpacing: 1, background: "rgba(255,255,255,0.15)", border: "none", borderBottom: "1.5px solid rgba(255,255,255,0.7)", outline: "none", width: 220, padding: "2px 4px", caretColor: "#fff" },
   viewToggle: { display: "flex", background: "#F3E8FF", borderRadius: 8, padding: 2 },
   togBtn: { background: "none", border: "none", padding: "5px 8px", borderRadius: 6, color: "#C0C0C0", cursor: "pointer", display: "flex", alignItems: "center" },
   togActive: { background: "#fff", color: "#C084FC", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" },
