@@ -156,17 +156,16 @@ const i18n = {
     logout: "退出登录",
     loginTitle: "我的日历",
     loginSub: "我们的征途是星辰大海",
+    loginDesc: "输入你的专属口令，数据会安全保存在云端",
     loginPlaceholder: "输入你的专属口令",
     loginBtn: "进入日历",
     loginLoading: "进入中...",
-    loading: "加载中...",
+    loginTip: "口令就是你的钥匙，请记住它",
     weekPrefix: "周",
     dayGroup: (day, wd) => `${day}日 · 周${wd}`,
     dateDisplay: (m, d) => `${m}月${d}日`,
     fullDate: (y, m, d) => `${y}年${m}月${d}日`,
     listDate: (m, d, wd) => `${m}月${d}日 · 周${wd}`,
-    schedDay: (m, d) => `${m}月${d}日`,
-    schedWk: (wd) => ` 周${wd}`,
   },
   ja: {
     wdays: ["日", "月", "火", "水", "木", "金", "土"],
@@ -195,18 +194,17 @@ const i18n = {
     updated: "更新しました",
     logout: "ログアウト",
     loginTitle: "マイカレンダー",
-    loginSub: "我らが征くは星の大海",
+    loginSub: "星と海が私たちの旅路",
+    loginDesc: "あなた専用のパスワードを入力してください。データはクラウドに保存されます",
     loginPlaceholder: "パスワードを入力",
     loginBtn: "カレンダーに入る",
     loginLoading: "読み込み中...",
-    loading: "読み込み中...",
+    loginTip: "パスワードはあなたの鍵です。忘れないでください",
     weekPrefix: "",
     dayGroup: (day, wd) => `${day}日（${wd}）`,
     dateDisplay: (m, d) => `${m}月${d}日`,
     fullDate: (y, m, d) => `${y}年${m}月${d}日`,
     listDate: (m, d, wd) => `${m}月${d}日（${wd}）`,
-    schedDay: (m, d) => `${m}月${d}日`,
-    schedWk: (wd) => `（${wd}）`,
   },
 };
 
@@ -217,6 +215,8 @@ function useLang() {
   }, []);
   return { lang, t: i18n[lang], toggle };
 }
+
+const WDAYS_ZH = ["日", "一", "二", "三", "四", "五", "六"];
 
 /* ───── speech hook ───── */
 function useSpeech() {
@@ -237,6 +237,25 @@ function useSpeech() {
   return { listening, transcript, supported, start, stop };
 }
 
+/* ───── swipe hook ───── */
+function useSwipe(onLeft, onRight) {
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const onTouchStart = useCallback((e) => {
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+  }, []);
+  const onTouchEnd = useCallback((e) => {
+    const dx = e.changedTouches[0].clientX - startX.current;
+    const dy = e.changedTouches[0].clientY - startY.current;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx > 0) onRight();
+      else onLeft();
+    }
+  }, [onLeft, onRight]);
+  return { onTouchStart, onTouchEnd };
+}
+
 const GRAD = "linear-gradient(135deg, #E879A8, #C084FC, #A78BFA)";
 
 /* ═══════ LOGIN SCREEN ═══════ */
@@ -244,6 +263,7 @@ function LoginScreen({ onLogin, lang, t, toggleLang }) {
   const [phrase, setPhrase] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // check saved session
   useEffect(() => {
     const saved = localStorage.getItem("cal-owner");
     if (saved) onLogin(saved);
@@ -259,6 +279,7 @@ function LoginScreen({ onLogin, lang, t, toggleLang }) {
 
   return (
     <div style={LS.wrap}>
+      {/* banner illustration */}
       <div style={LS.bannerWrap}>
         <svg viewBox="0 0 400 200" style={{ width: "100%", height: "100%", display: "block" }} preserveAspectRatio="xMidYMid slice">
           <defs>
@@ -288,16 +309,10 @@ function LoginScreen({ onLogin, lang, t, toggleLang }) {
       </div>
 
       <div style={LS.content}>
-        {/* Language slider toggle */}
-        <div style={LS.sliderWrap} onClick={toggleLang}>
-          <div style={LS.sliderTrack}>
-            <div style={{ ...LS.sliderThumb, transform: lang === "ja" ? "translateX(100%)" : "translateX(0)" }} />
-            <span style={{ ...LS.sliderLabel, left: 0, color: lang === "zh" ? "#fff" : "#C084FC" }}>中文</span>
-            <span style={{ ...LS.sliderLabel, right: 0, color: lang === "ja" ? "#fff" : "#C084FC" }}>日本語</span>
-          </div>
-        </div>
+        <button style={LS.langBtn} onClick={toggleLang}>{lang === "zh" ? "日本語" : "中文"}</button>
         <div style={LS.title}>{t.loginTitle}</div>
         <div style={LS.sub}>{t.loginSub}</div>
+        <div style={LS.desc}>{t.loginDesc}</div>
         <input
           style={LS.input}
           type="password"
@@ -309,6 +324,7 @@ function LoginScreen({ onLogin, lang, t, toggleLang }) {
         <button style={{ ...LS.btn, opacity: phrase.trim() ? 1 : 0.45 }} onClick={handleLogin} disabled={!phrase.trim() || loading}>
           {loading ? t.loginLoading : t.loginBtn}
         </button>
+        <div style={LS.tip}>{t.loginTip}</div>
       </div>
     </div>
   );
@@ -320,12 +336,11 @@ const LS = {
   content: { padding: "24px 28px", textAlign: "center" },
   title: { fontSize: 28, fontWeight: 800, background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", marginBottom: 4 },
   sub: { fontSize: 14, color: "#A78BFA", fontWeight: 500, marginBottom: 24 },
-  sliderWrap: { display: "flex", justifyContent: "center", marginBottom: 16, cursor: "pointer" },
-  sliderTrack: { position: "relative", width: 140, height: 36, borderRadius: 18, display: "flex", alignItems: "center", overflow: "hidden" },
-  sliderThumb: { position: "absolute", width: "50%", height: "100%", borderRadius: 18, background: GRAD, transition: "transform 0.3s ease", zIndex: 1 },
-  sliderLabel: { position: "absolute", width: "50%", textAlign: "center", fontSize: 13, fontWeight: 700, zIndex: 2, transition: "color 0.3s ease" },
+  desc: { fontSize: 13, color: "#999", marginBottom: 20, lineHeight: 1.5 },
+  langBtn: { background: "#F3E8FF", border: "none", borderRadius: 8, padding: "4px 12px", fontSize: 12, fontWeight: 600, color: "#C084FC", cursor: "pointer", marginBottom: 16 },
   input: { width: "100%", padding: "14px 18px", border: "1.5px solid #E5E5E5", borderRadius: 14, fontSize: 16, outline: "none", background: "#fff", color: "#1A1A1A", textAlign: "center", boxSizing: "border-box", marginBottom: 14 },
   btn: { width: "100%", height: 50, borderRadius: 14, border: "none", background: GRAD, color: "#fff", fontSize: 16, fontWeight: 700, cursor: "pointer", transition: "opacity .2s" },
+  tip: { fontSize: 12, color: "#C0C0C0", marginTop: 16 },
 };
 
 /* ═══════ MAIN APP ═══════ */
@@ -359,9 +374,10 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
     showToast(`${t.added}${p.content}`);
     setCY(p.date.getFullYear()); setCM(p.date.getMonth());
     await insertEvent(ev);
-  }, [inputText, showToast, speech, owner, t]);
+  }, [inputText, showToast, speech, owner]);
 
   const openInput = useCallback(() => {
+    // if a day is selected, pre-fill the date
     if (selDay) {
       const d = pKey(selDay);
       setInputText(`${d.getMonth()+1}月${d.getDate()}日 `);
@@ -413,9 +429,11 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
   const dotColors = ["#E879A8", "#C084FC", "#A78BFA", "#F0ABCF"];
   const getDot = j => dotColors[j % dotColors.length];
 
+  const swipe = useSwipe(next, prev);
+
   const logout = () => { localStorage.removeItem("cal-owner"); window.location.reload(); };
 
-  if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", color: "#C084FC", fontFamily: "sans-serif" }}>{t.loading}</div>;
+  if (loading) return <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh", color: "#C084FC", fontFamily: "sans-serif" }}>加载中...</div>;
 
   return (
     <div style={S.app}>
@@ -423,13 +441,7 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
       <div style={S.header}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={S.monthLabel}>{t.months[cM]}{t.monthSuffix}</div>
-          <div style={S.headerSliderWrap} onClick={toggleLang}>
-            <div style={S.headerSliderTrack}>
-              <div style={{ ...S.headerSliderThumb, transform: lang === "ja" ? "translateX(100%)" : "translateX(0)" }} />
-              <span style={{ ...S.headerSliderLabel, left: 0, color: lang === "zh" ? "#fff" : "#C084FC" }}>中</span>
-              <span style={{ ...S.headerSliderLabel, right: 0, color: lang === "ja" ? "#fff" : "#C084FC" }}>日</span>
-            </div>
-          </div>
+          <button style={S.langToggle} onClick={toggleLang}>{lang === "zh" ? "JP" : "中"}</button>
         </div>
         <div style={S.headerR}>
           <button style={S.todayBtn} onClick={goToday}>{t.today}</button>
@@ -464,14 +476,14 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
             <line x1="30" y1="122" x2="70" y2="122" stroke="white" strokeWidth="0.8" opacity="0.3" /><line x1="200" y1="120" x2="250" y2="120" stroke="white" strokeWidth="0.7" opacity="0.3" /><line x1="350" y1="125" x2="390" y2="125" stroke="white" strokeWidth="0.6" opacity="0.25" />
           </svg>
           <div style={S.bannerText}>
-            <div style={S.bannerQuote}>{t.loginSub}</div>
+            <div style={S.bannerQuote}>我们的征途是星辰大海</div>
           </div>
         </div>
       </div>
 
       {/* CALENDAR VIEW */}
       {view === "calendar" && <>
-        <div style={S.calCard}>
+        <div style={S.calCard} {...swipe}>
           <div style={S.calGrid}>
             {t.wdays.map(d => <div key={d} style={S.dow}>{d}</div>)}
             {grid.map((day, i) => {
@@ -491,15 +503,15 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
 
         <div style={S.schedArea}>
           <div style={S.schedHeader}>
-            {selDay ? (() => { const d = pKey(selDay); return <><span style={S.schedDate}>{t.schedDay(d.getMonth() + 1, d.getDate())}</span><span style={S.schedWk}>{t.schedWk(t.wdays[d.getDay()])}</span></>; })()
-              : <span style={S.schedDate}>{t.thisMonth}</span>}
+            {selDay ? (() => { const d = pKey(selDay); return <><span style={S.schedDate}>{d.getMonth() + 1}月{d.getDate()}日</span><span style={S.schedWk}> 周{WDAYS[d.getDay()]}</span></>; })()
+              : <span style={S.schedDate}>本月安排</span>}
           </div>
           {selDay ? (<>
-            {(eMap[selDay] || []).length === 0 && <div style={S.empty}>{t.noEventsDay}</div>}
+            {(eMap[selDay] || []).length === 0 && <div style={S.empty}>当天暂无安排</div>}
             {(eMap[selDay] || []).map((ev, j) => (
               <div key={ev.id} style={S.evCard}>
                 <div style={{ ...S.evDot, background: getDot(j) }} />
-                <div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div>
+                <div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || "时间未定"}</div></div>
                 <div style={S.evActs}>
                   <button style={S.iBtn} onClick={() => setEditing({ ...ev })}><IcoEdit /></button>
                   <button style={{ ...S.iBtn, color: "#EF4444" }} onClick={() => handleDel(ev.id)}><IcoTrash /></button>
@@ -507,8 +519,8 @@ function CalendarApp({ owner, lang, t, toggleLang }) {
               </div>
             ))}
           </>) : (<>
-            {grouped.length === 0 && <div style={S.empty}>{t.noEvents}</div>}
-            {grouped.map(g => { const d = pKey(g.date); return (<div key={g.date}><div style={S.groupLabel}>{t.dayGroup(d.getDate(), t.wdays[d.getDay()])}</div>{g.items.map((ev, j) => (<div key={ev.id} style={S.evCard} onClick={() => setSelDay(g.date)}><div style={{ ...S.evDot, background: getDot(j) }} /><div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || t.timeUndecided}</div></div></div>))}</div>); })}
+            {grouped.length === 0 && <div style={S.empty}>暂无日程，点击 + 添加</div>}
+            {grouped.map(g => { const d = pKey(g.date); return (<div key={g.date}><div style={S.groupLabel}>{d.getDate()}日 · 周{WDAYS[d.getDay()]}</div>{g.items.map((ev, j) => (<div key={ev.id} style={S.evCard} onClick={() => setSelDay(g.date)}><div style={{ ...S.evDot, background: getDot(j) }} /><div style={S.evBody}><div style={S.evContent}>{ev.content}</div><div style={S.evTime}>{ev.time || "时间未定"}</div></div></div>))}</div>); })}
           </>)}
         </div>
       </>}
@@ -575,10 +587,6 @@ const S = {
   app: { fontFamily: "-apple-system,BlinkMacSystemFont,'PingFang SC','Hiragino Sans GB',sans-serif", maxWidth: 430, margin: "0 auto", background: "#F5F5F5", minHeight: "100vh", color: "#1A1A1A", fontSize: 14, paddingBottom: 100, position: "relative" },
   header: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 20px 6px" },
   monthLabel: { fontSize: 28, fontWeight: 800, letterSpacing: -0.5, background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" },
-  headerSliderWrap: { cursor: "pointer" },
-  headerSliderTrack: { position: "relative", width: 64, height: 28, borderRadius: 14, background: "#F3E8FF", display: "flex", alignItems: "center", overflow: "hidden" },
-  headerSliderThumb: { position: "absolute", width: "50%", height: "100%", borderRadius: 14, background: GRAD, transition: "transform 0.3s ease", zIndex: 1 },
-  headerSliderLabel: { position: "absolute", width: "50%", textAlign: "center", fontSize: 12, fontWeight: 700, zIndex: 2, transition: "color 0.3s ease" },
   headerR: { display: "flex", gap: 6, alignItems: "center" },
   todayBtn: { background: "#fff", border: "1px solid #E5E5E5", borderRadius: 8, padding: "5px 12px", fontSize: 12, fontWeight: 600, color: "#C084FC", cursor: "pointer" },
   arrBtn: { background: "none", border: "none", color: "#C084FC", cursor: "pointer", padding: 2 },
