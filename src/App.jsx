@@ -354,7 +354,7 @@ function CalendarApp({ owner, t }) {
             </svg>
           )}
           <input type="file" accept="image/*" ref={bannerFileRef} style={{ display: "none" }} onChange={handleBannerUpload} />
-          <div style={S.bannerText}
+          <div style={S.bannerText}>
             {editingQuote ? (
               <input
                 autoFocus
