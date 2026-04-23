@@ -496,7 +496,7 @@ const S = {
   dayNum: { width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, borderRadius: "50%", color: "#333", transition: "all .15s" },
   dayToday: { background: GRAD, color: "#fff", fontWeight: 700 },
   dayHasEv: { border: "2px solid #D8B4FE", color: "#9333EA" },
-  dayAllDone: { border: "2px solid #D4D4D4", color: "#999" },
+  dayAllDone: { border: "2px solid #EAEAEA", color: "#C0C0C0" },
   schedArea: { padding: "16px 20px 0" },
   schedHeader: { marginBottom: 12 },
   schedDate: { fontSize: 16, fontWeight: 700, background: GRAD, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" },
