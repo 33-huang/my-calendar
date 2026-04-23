@@ -244,9 +244,21 @@ function CalendarApp({ owner, t }) {
   const [editingQuote, setEditingQuote] = useState(false);
   const [quoteInput, setQuoteInput] = useState("");
   const [bannerImg, setBannerImg] = useState(() => localStorage.getItem("cal-banner-img") || null);
+  const [bannerPos, setBannerPos] = useState(() => { try { return JSON.parse(localStorage.getItem("cal-banner-pos") || "null") || { x: 50, y: 50 }; } catch { return { x: 50, y: 50 }; } });
+  const [cropImg, setCropImg] = useState(null);
+  const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+  const [cropImgSize, setCropImgSize] = useState({ w: 1, h: 1 });
+  const cropDragRef = useRef({ active: false, startX: 0, startY: 0, ox: 0, oy: 0 });
   const bannerFileRef = useRef(null);
-  const handleBannerUpload = useCallback(e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const url = ev.target.result; localStorage.setItem("cal-banner-img", url); setBannerImg(url); }; r.readAsDataURL(f); e.target.value = ""; }, []);
-  const resetBannerImg = useCallback(() => { localStorage.removeItem("cal-banner-img"); setBannerImg(null); }, []);
+  const CROP_W = 350, CROP_H = 106;
+  const getCropScale = (iw, ih) => Math.max(CROP_W / iw, CROP_H / ih);
+  const clampCrop = (ox, oy, iw, ih) => { const sc = getCropScale(iw, ih), sw = iw * sc, sh = ih * sc; return { x: Math.min(0, Math.max(CROP_W - sw, ox)), y: Math.min(0, Math.max(CROP_H - sh, oy)) }; };
+  const handleBannerUpload = useCallback(e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const url = ev.target.result; const img = new Image(); img.onload = () => { setCropImgSize({ w: img.naturalWidth, h: img.naturalHeight }); setCropOffset({ x: 0, y: 0 }); }; img.src = url; setCropImg(url); }; r.readAsDataURL(f); e.target.value = ""; }, []);
+  const confirmCrop = useCallback(() => { const sc = getCropScale(cropImgSize.w, cropImgSize.h), sw = cropImgSize.w * sc, sh = cropImgSize.h * sc; const px = sw > CROP_W ? (-cropOffset.x / (sw - CROP_W)) * 100 : 50; const py = sh > CROP_H ? (-cropOffset.y / (sh - CROP_H)) * 100 : 50; const pos = { x: Math.round(px), y: Math.round(py) }; localStorage.setItem("cal-banner-img", cropImg); localStorage.setItem("cal-banner-pos", JSON.stringify(pos)); setBannerImg(cropImg); setBannerPos(pos); setCropImg(null); }, [cropImg, cropOffset, cropImgSize]);
+  const onCropStart = useCallback(e => { e.preventDefault(); const cx = e.touches ? e.touches[0].clientX : e.clientX, cy = e.touches ? e.touches[0].clientY : e.clientY; cropDragRef.current = { active: true, startX: cx, startY: cy, ox: cropOffset.x, oy: cropOffset.y }; }, [cropOffset]);
+  const onCropMove = useCallback(e => { if (!cropDragRef.current.active) return; e.preventDefault(); const cx = e.touches ? e.touches[0].clientX : e.clientX, cy = e.touches ? e.touches[0].clientY : e.clientY; setCropOffset(clampCrop(cropDragRef.current.ox + cx - cropDragRef.current.startX, cropDragRef.current.oy + cy - cropDragRef.current.startY, cropImgSize.w, cropImgSize.h)); }, [cropImgSize]);
+  const onCropEnd = useCallback(() => { cropDragRef.current.active = false; }, []);
+  const resetBannerImg = useCallback(() => { localStorage.removeItem("cal-banner-img"); localStorage.removeItem("cal-banner-pos"); setBannerImg(null); setBannerPos({ x: 50, y: 50 }); }, []);
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => { loadEvents(owner).then(e => { dispatch({ type: "LOAD", events: e }); setLoading(false); }); }, [owner]);
@@ -333,7 +345,7 @@ function CalendarApp({ owner, t }) {
       <div style={S.bannerWrap}>
         <div style={S.banner}>
           {bannerImg ? (
-            <img src={bannerImg} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", borderRadius: 16 }} />
+            <img src={bannerImg} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", objectPosition: `${bannerPos.x}% ${bannerPos.y}%`, borderRadius: 16 }} />
           ) : (
             <svg viewBox="0 0 400 140" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: 16 }} preserveAspectRatio="xMidYMid slice">
               <defs>
@@ -475,6 +487,25 @@ function CalendarApp({ owner, t }) {
               </div>
               <button style={S.saveBtn} onClick={() => handleUpd(editing)}><IcoCheck /><span style={{ marginLeft: 6 }}>{t.save}</span></button>
               <div style={S.deleteWrap}><button style={S.deleteBtn} onClick={() => { if (window.confirm(t.confirmDelete)) handleDel(editing.id); }}>{t.deleteEvent}</button></div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cropImg && (
+        <div style={S.overlay} onClick={() => setCropImg(null)}>
+          <div style={S.sheet} onClick={e => e.stopPropagation()}>
+            <div style={S.sheetHandle} />
+            <div style={S.editHeader}><span style={S.editTitle}>选择显示区域</span><button style={S.iBtn} onClick={() => setCropImg(null)}><IcoX /></button></div>
+            <div style={{ fontSize: 13, color: "#999", textAlign: "center", margin: "10px 0 14px" }}>拖动图片，选择要显示的部分</div>
+            <div style={{ width: 350, height: 106, overflow: "hidden", position: "relative", borderRadius: 12, margin: "0 auto", cursor: "grab", touchAction: "none", userSelect: "none" }}
+              onMouseDown={onCropStart} onMouseMove={onCropMove} onMouseUp={onCropEnd} onMouseLeave={onCropEnd}
+              onTouchStart={onCropStart} onTouchMove={onCropMove} onTouchEnd={onCropEnd}>
+              <img src={cropImg} draggable={false} style={{ position: "absolute", width: cropImgSize.w * getCropScale(cropImgSize.w, cropImgSize.h), height: cropImgSize.h * getCropScale(cropImgSize.w, cropImgSize.h), left: cropOffset.x, top: cropOffset.y, pointerEvents: "none" }} />
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
+              <button style={{ ...S.mainBtn, background: "#F0F0F0", color: "#999", flex: "0 0 80px", fontSize: 14 }} onClick={() => setCropImg(null)}>取消</button>
+              <button style={S.mainBtn} onClick={confirmCrop}>确认使用</button>
             </div>
           </div>
         </div>
