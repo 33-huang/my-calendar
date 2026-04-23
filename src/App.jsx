@@ -72,6 +72,8 @@ const IcoCheck = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="non
 const IcoMic = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="1" width="6" height="12" rx="3" /><path d="M19 10v2a7 7 0 01-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>;
 const IcoPlus = () => <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
 const IcoCheckCircle = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><polyline points="9 12 11.5 14.5 16 9.5" /></svg>;
+const IcoImg = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>;
+const IcoSettings = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" /></svg>;
 
 /* ═══ i18n ═══ */
 const i18n = {
@@ -241,6 +243,11 @@ function CalendarApp({ owner, t }) {
   const [bannerQuote, setBannerQuote] = useState(() => localStorage.getItem("cal-banner-quote") || null);
   const [editingQuote, setEditingQuote] = useState(false);
   const [quoteInput, setQuoteInput] = useState("");
+  const [bannerImg, setBannerImg] = useState(() => localStorage.getItem("cal-banner-img") || null);
+  const bannerFileRef = useRef(null);
+  const handleBannerUpload = useCallback(e => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = ev => { const url = ev.target.result; localStorage.setItem("cal-banner-img", url); setBannerImg(url); }; r.readAsDataURL(f); e.target.value = ""; }, []);
+  const resetBannerImg = useCallback(() => { localStorage.removeItem("cal-banner-img"); setBannerImg(null); }, []);
+  const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => { loadEvents(owner).then(e => { dispatch({ type: "LOAD", events: e }); setLoading(false); }); }, [owner]);
   useEffect(() => { if (speech.transcript) setInputText(speech.transcript); }, [speech.transcript]);
@@ -319,29 +326,35 @@ function CalendarApp({ owner, t }) {
             <button style={{ ...S.togBtn, ...(view === "calendar" ? S.togActive : {}) }} onClick={() => setView("calendar")}><IcoCal /></button>
             <button style={{ ...S.togBtn, ...(view === "list" ? S.togActive : {}) }} onClick={() => setView("list")}><IcoList /></button>
           </div>
+          <button style={S.arrBtn} onClick={() => setShowSettings(true)}><IcoSettings /></button>
         </div>
       </div>
 
       <div style={S.bannerWrap}>
         <div style={S.banner}>
-          <svg viewBox="0 0 400 140" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: 16 }} preserveAspectRatio="xMidYMid slice">
-            <defs>
-              <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#C4B5FD" /><stop offset="50%" stopColor="#DDD6FE" /><stop offset="100%" stopColor="#F0ABFC" /></linearGradient>
-              <linearGradient id="sea" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#C084FC" stopOpacity="0.4" /><stop offset="100%" stopColor="#E879A8" stopOpacity="0.3" /></linearGradient>
-              <linearGradient id="m1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.6" /><stop offset="100%" stopColor="#7C3AED" stopOpacity="0.4" /></linearGradient>
-              <linearGradient id="m2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#A78BFA" stopOpacity="0.7" /><stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.5" /></linearGradient>
-              <linearGradient id="m3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#C4B5FD" stopOpacity="0.6" /><stop offset="100%" stopColor="#A78BFA" stopOpacity="0.4" /></linearGradient>
-              <radialGradient id="sun" cx="0.75" cy="0.3"><stop offset="0%" stopColor="#FDE68A" stopOpacity="0.8" /><stop offset="100%" stopColor="#FDE68A" stopOpacity="0" /></radialGradient>
-            </defs>
-            <rect width="400" height="140" fill="url(#sky)" /><circle cx="320" cy="38" r="50" fill="url(#sun)" /><circle cx="320" cy="38" r="14" fill="#FDE68A" opacity="0.6" />
-            <circle cx="40" cy="20" r="1.2" fill="white" opacity="0.7" /><circle cx="90" cy="12" r="0.8" fill="white" opacity="0.5" /><circle cx="150" cy="25" r="1" fill="white" opacity="0.6" /><circle cx="200" cy="10" r="1.3" fill="white" opacity="0.4" /><circle cx="260" cy="18" r="0.9" fill="white" opacity="0.5" />
-            <polygon points="0,95 50,55 100,75 150,48 210,70 260,42 310,65 360,50 400,68 400,105 0,105" fill="url(#m3)" />
-            <polygon points="0,105 30,78 80,90 130,62 180,82 230,58 280,78 330,65 380,80 400,72 400,115 0,115" fill="url(#m2)" />
-            <polygon points="0,115 60,88 110,100 170,80 220,95 270,75 340,92 400,82 400,125 0,125" fill="url(#m1)" />
-            <rect y="115" width="400" height="25" fill="url(#sea)" />
-            <line x1="30" y1="122" x2="70" y2="122" stroke="white" strokeWidth="0.8" opacity="0.3" /><line x1="200" y1="120" x2="250" y2="120" stroke="white" strokeWidth="0.7" opacity="0.3" /><line x1="350" y1="125" x2="390" y2="125" stroke="white" strokeWidth="0.6" opacity="0.25" />
-          </svg>
-          <div style={S.bannerText}>
+          {bannerImg ? (
+            <img src={bannerImg} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", borderRadius: 16 }} />
+          ) : (
+            <svg viewBox="0 0 400 140" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: 16 }} preserveAspectRatio="xMidYMid slice">
+              <defs>
+                <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#C4B5FD" /><stop offset="50%" stopColor="#DDD6FE" /><stop offset="100%" stopColor="#F0ABFC" /></linearGradient>
+                <linearGradient id="sea" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stopColor="#C084FC" stopOpacity="0.4" /><stop offset="100%" stopColor="#E879A8" stopOpacity="0.3" /></linearGradient>
+                <linearGradient id="m1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.6" /><stop offset="100%" stopColor="#7C3AED" stopOpacity="0.4" /></linearGradient>
+                <linearGradient id="m2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#A78BFA" stopOpacity="0.7" /><stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.5" /></linearGradient>
+                <linearGradient id="m3" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#C4B5FD" stopOpacity="0.6" /><stop offset="100%" stopColor="#A78BFA" stopOpacity="0.4" /></linearGradient>
+                <radialGradient id="sun" cx="0.75" cy="0.3"><stop offset="0%" stopColor="#FDE68A" stopOpacity="0.8" /><stop offset="100%" stopColor="#FDE68A" stopOpacity="0" /></radialGradient>
+              </defs>
+              <rect width="400" height="140" fill="url(#sky)" /><circle cx="320" cy="38" r="50" fill="url(#sun)" /><circle cx="320" cy="38" r="14" fill="#FDE68A" opacity="0.6" />
+              <circle cx="40" cy="20" r="1.2" fill="white" opacity="0.7" /><circle cx="90" cy="12" r="0.8" fill="white" opacity="0.5" /><circle cx="150" cy="25" r="1" fill="white" opacity="0.6" /><circle cx="200" cy="10" r="1.3" fill="white" opacity="0.4" /><circle cx="260" cy="18" r="0.9" fill="white" opacity="0.5" />
+              <polygon points="0,95 50,55 100,75 150,48 210,70 260,42 310,65 360,50 400,68 400,105 0,105" fill="url(#m3)" />
+              <polygon points="0,105 30,78 80,90 130,62 180,82 230,58 280,78 330,65 380,80 400,72 400,115 0,115" fill="url(#m2)" />
+              <polygon points="0,115 60,88 110,100 170,80 220,95 270,75 340,92 400,82 400,125 0,125" fill="url(#m1)" />
+              <rect y="115" width="400" height="25" fill="url(#sea)" />
+              <line x1="30" y1="122" x2="70" y2="122" stroke="white" strokeWidth="0.8" opacity="0.3" /><line x1="200" y1="120" x2="250" y2="120" stroke="white" strokeWidth="0.7" opacity="0.3" /><line x1="350" y1="125" x2="390" y2="125" stroke="white" strokeWidth="0.6" opacity="0.25" />
+            </svg>
+          )}
+          <input type="file" accept="image/*" ref={bannerFileRef} style={{ display: "none" }} onChange={handleBannerUpload} />
+          <div style={S.bannerText}
             {editingQuote ? (
               <input
                 autoFocus
@@ -467,7 +480,36 @@ function CalendarApp({ owner, t }) {
         </div>
       )}
 
-      <div style={S.logoutWrap}><button style={S.logoutBtn} onClick={logout}>{t.logout}</button></div>
+      {showSettings && (
+        <div style={S.overlay} onClick={() => setShowSettings(false)}>
+          <div style={S.sheet} onClick={e => e.stopPropagation()}>
+            <div style={S.sheetHandle} />
+            <div style={S.editHeader}><span style={S.editTitle}>设置</span><button style={S.iBtn} onClick={() => setShowSettings(false)}><IcoX /></button></div>
+            <div style={{ marginTop: 16 }}>
+              <div style={S.settingsGroup}>个性化</div>
+              <div style={S.settingsCard}>
+                <button style={S.settingsRow} onClick={() => { setShowSettings(false); bannerFileRef.current?.click(); }}>
+                  <IcoImg /><span style={S.settingsLabel}>更换 Banner 图片</span><span style={S.settingsArrow}>›</span>
+                </button>
+                <div style={S.settingsDivider} />
+                <button style={S.settingsRow} onClick={() => { setShowSettings(false); setQuoteInput(bannerQuote || t.loginSub); setEditingQuote(true); }}>
+                  <IcoEdit /><span style={S.settingsLabel}>修改 Banner 文字</span><span style={S.settingsArrow}>›</span>
+                </button>
+                {bannerImg && <><div style={S.settingsDivider} /><button style={S.settingsRow} onClick={() => { resetBannerImg(); setShowSettings(false); }}>
+                  <IcoX /><span style={S.settingsLabel}>恢复默认插画</span><span style={S.settingsArrow}>›</span>
+                </button></>}
+              </div>
+              <div style={{ ...S.settingsGroup, marginTop: 20 }}>账号</div>
+              <div style={S.settingsCard}>
+                <button style={{ ...S.settingsRow, color: "#C0C0C0" }} onClick={logout}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+                  <span style={{ ...S.settingsLabel, color: "#C0C0C0" }}>{t.logout}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -485,6 +527,12 @@ const S = {
   bannerText: { position: "absolute", bottom: 14, left: 18, zIndex: 1 },
   bannerQuote: { fontSize: 15, fontWeight: 700, color: "#fff", textShadow: "0 1px 8px rgba(107,70,193,0.5)", letterSpacing: 1, cursor: "pointer" },
   bannerInput: { fontSize: 15, fontWeight: 700, color: "#fff", letterSpacing: 1, background: "rgba(255,255,255,0.15)", border: "none", borderBottom: "1.5px solid rgba(255,255,255,0.7)", outline: "none", width: 220, padding: "2px 4px", caretColor: "#fff" },
+  settingsGroup: { fontSize: 11, fontWeight: 600, color: "#C084FC", letterSpacing: 0.5, marginBottom: 8, paddingLeft: 2 },
+  settingsCard: { background: "#fff", borderRadius: 12, overflow: "hidden", border: "1px solid #F0F0F0" },
+  settingsRow: { display: "flex", alignItems: "center", gap: 12, width: "100%", padding: "14px 16px", background: "none", border: "none", cursor: "pointer", color: "#C084FC", textAlign: "left" },
+  settingsLabel: { flex: 1, fontSize: 14, color: "#1A1A1A" },
+  settingsArrow: { fontSize: 16, color: "#C0C0C0" },
+  settingsDivider: { height: 1, background: "#F5F5F5", marginLeft: 44 },
   viewToggle: { display: "flex", background: "#F3E8FF", borderRadius: 8, padding: 2 },
   togBtn: { background: "none", border: "none", padding: "5px 8px", borderRadius: 6, color: "#C0C0C0", cursor: "pointer", display: "flex", alignItems: "center" },
   togActive: { background: "#fff", color: "#C084FC", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" },
@@ -534,8 +582,6 @@ const S = {
   deleteWrap: { textAlign: "center", marginTop: 16 },
   deleteBtn: { background: "none", border: "none", color: "#C0C0C0", fontSize: 14, fontWeight: 500, cursor: "pointer" },
   toast: { position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", padding: "10px 22px", borderRadius: 12, fontSize: 13, fontWeight: 600, zIndex: 999, border: "1px solid", boxShadow: "0 4px 16px rgba(0,0,0,0.08)" },
-  logoutWrap: { padding: "20px 20px 0", textAlign: "center" },
-  logoutBtn: { background: "none", border: "none", color: "#C0C0C0", fontSize: 12, cursor: "pointer" },
 };
 
 /* ═══ ROOT ═══ */
