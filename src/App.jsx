@@ -243,6 +243,8 @@ function CalendarApp({ owner, t }) {
   const [bannerQuote, setBannerQuote] = useState(() => localStorage.getItem("cal-banner-quote") || null);
   const [editingQuote, setEditingQuote] = useState(false);
   const [quoteInput, setQuoteInput] = useState("");
+  const [bannerTextPos, setBannerTextPos] = useState(() => localStorage.getItem("cal-banner-text-pos") || "bl");
+  const BT_POS = { tl: { top: 14, left: 18 }, tr: { top: 14, right: 18 }, bl: { bottom: 14, left: 18 }, br: { bottom: 14, right: 18 } };
   const [bannerImg, setBannerImg] = useState(() => localStorage.getItem("cal-banner-img") || null);
   const [bannerPos, setBannerPos] = useState(() => { try { return JSON.parse(localStorage.getItem("cal-banner-pos") || "null") || { x: 50, y: 50 }; } catch { return { x: 50, y: 50 }; } });
   const [cropImg, setCropImg] = useState(null);
@@ -366,7 +368,7 @@ function CalendarApp({ owner, t }) {
             </svg>
           )}
           <input type="file" accept="image/*" ref={bannerFileRef} style={{ display: "none" }} onChange={handleBannerUpload} />
-          <div style={S.bannerText}>
+          <div style={{ ...S.bannerText, ...BT_POS[bannerTextPos] }}>
             {editingQuote ? (
               <input
                 autoFocus
@@ -526,6 +528,15 @@ function CalendarApp({ owner, t }) {
                 <button style={S.settingsRow} onClick={() => { setShowSettings(false); setQuoteInput(bannerQuote || t.loginSub); setEditingQuote(true); }}>
                   <IcoEdit /><span style={S.settingsLabel}>修改 Banner 文字</span><span style={S.settingsArrow}>›</span>
                 </button>
+                <div style={S.settingsDivider} />
+                <div style={{ padding: "12px 16px" }}>
+                  <div style={{ fontSize: 12, color: "#999", marginBottom: 10 }}>文字位置</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {[["tl","↖ 左上"],["tr","↗ 右上"],["bl","↙ 左下"],["br","↘ 右下"]].map(([k, label]) => (
+                      <button key={k} style={{ ...S.posBtn, ...(bannerTextPos === k ? S.posBtnActive : {}) }} onClick={() => { localStorage.setItem("cal-banner-text-pos", k); setBannerTextPos(k); }}>{label}</button>
+                    ))}
+                  </div>
+                </div>
                 {bannerImg && <><div style={S.settingsDivider} /><button style={S.settingsRow} onClick={() => { resetBannerImg(); setShowSettings(false); }}>
                   <IcoX /><span style={S.settingsLabel}>恢复默认插画</span><span style={S.settingsArrow}>›</span>
                 </button></>}
@@ -555,8 +566,8 @@ const S = {
   arrBtn: { background: "none", border: "none", color: "#C084FC", cursor: "pointer", padding: 2 },
   bannerWrap: { padding: "0 16px", marginBottom: 4 },
   banner: { position: "relative", borderRadius: 16, height: 120, overflow: "hidden" },
-  bannerText: { position: "absolute", bottom: 14, left: 18, zIndex: 1 },
-  bannerQuote: { fontSize: 15, fontWeight: 700, color: "#fff", textShadow: "0 1px 8px rgba(107,70,193,0.5)", letterSpacing: 1, cursor: "pointer" },
+  bannerText: { position: "absolute", zIndex: 1 },
+  bannerQuote: { fontSize: 15, fontWeight: 700, color: "#fff", letterSpacing: 1, cursor: "pointer" },
   bannerInput: { fontSize: 15, fontWeight: 700, color: "#fff", letterSpacing: 1, background: "rgba(255,255,255,0.15)", border: "none", borderBottom: "1.5px solid rgba(255,255,255,0.7)", outline: "none", width: 220, padding: "2px 4px", caretColor: "#fff" },
   settingsGroup: { fontSize: 11, fontWeight: 600, color: "#C084FC", letterSpacing: 0.5, marginBottom: 8, paddingLeft: 2 },
   settingsCard: { background: "#fff", borderRadius: 12, overflow: "hidden", border: "1px solid #F0F0F0" },
@@ -564,6 +575,8 @@ const S = {
   settingsLabel: { flex: 1, fontSize: 14, color: "#1A1A1A" },
   settingsArrow: { fontSize: 16, color: "#C0C0C0" },
   settingsDivider: { height: 1, background: "#F5F5F5", marginLeft: 44 },
+  posBtn: { padding: "8px 0", borderRadius: 8, border: "1.5px solid #E5E5E5", background: "#fff", fontSize: 13, color: "#999", cursor: "pointer" },
+  posBtnActive: { border: "1.5px solid #C084FC", background: "#F9F0FF", color: "#C084FC", fontWeight: 600 },
   viewToggle: { display: "flex", background: "#F3E8FF", borderRadius: 8, padding: 2 },
   togBtn: { background: "none", border: "none", padding: "5px 8px", borderRadius: 6, color: "#C0C0C0", cursor: "pointer", display: "flex", alignItems: "center" },
   togActive: { background: "#fff", color: "#C084FC", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" },
